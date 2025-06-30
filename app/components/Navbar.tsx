@@ -33,8 +33,12 @@ export default function BoltNavbar() {
       color="default"
       sx={{
         backgroundColor: theme.palette.background.paper,
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderTop: "none",
+        borderLeft: "none",
+        borderRight: "none",
+        borderBottom: "1px solid ${theme.palette.divider}",
         px: 2,
+        borderRadius: "0",
       }}
     >
       <Toolbar
@@ -46,13 +50,12 @@ export default function BoltNavbar() {
           justifyContent: "space-between",
         }}
       >
-        {/* Left: Logo */}
         <Box display="flex" alignItems="center" gap={1.25}>
           <Box
             sx={{
               width: 32,
               height: 32,
-              borderRadius: "8px",
+              borderRadius: "6px",
               background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
               display: "flex",
               alignItems: "center",

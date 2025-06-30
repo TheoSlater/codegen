@@ -1,17 +1,39 @@
-"use client";
-
-import { useState, useMemo } from "react";
+// components/ChatArea.tsx
+import React, { useState, useEffect } from "react";
 import { Box, Paper, Typography, useTheme } from "@mui/material";
-import { useChat } from "../context/ChatMessagesContext";
-import ChatBubble from "./ChatBubble";
-import ChatInput from "./ChatInput";
+import { useChat } from "../../context/ChatMessagesContext";
+import ChatBubble from "../test/ChatBubble_TEST";
+import ChatInput from "../ChatInput";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { Virtuoso } from "react-virtuoso";
+import CodePanel from "./CodePanel";
 
-export default function ChatArea() {
+const ChatArea: React.FC = () => {
   const theme = useTheme();
   const { messages, isSending, sendMessage, cancel } = useChat();
   const [input, setInput] = useState("");
+  const [code, setCode] = useState<string>("");
+  const [pendingFilename, setPendingFilename] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const lastMsg = messages[messages.length - 1];
+
+    if (lastMsg.role === "assistant") {
+      const codeBlockMatch = lastMsg.content.match(/```tsx?\n([\s\S]*?)```/);
+      const inProgressMatch = lastMsg.content.match(/```tsx?\n([\s\S]*)$/); // no closing ```
+
+      if (codeBlockMatch && !isSending) {
+        setCode(codeBlockMatch[1]);
+        setPendingFilename(null);
+      } else if (inProgressMatch && isSending) {
+        setPendingFilename("App.tsx"); // TODO: Improve filename extraction
+      } else {
+        setPendingFilename(null);
+      }
+    }
+  }, [messages, isSending]);
 
   const handleSendInput = async (content: string) => {
     if (!content.trim()) return;
@@ -19,18 +41,9 @@ export default function ChatArea() {
     setInput("");
   };
 
-  const lastCode = useMemo(() => {
-    const reversed = [...messages].reverse();
-    const lastAssistant = reversed.find((m) => m.role === "assistant");
-    if (!lastAssistant) return "";
-    const text = lastAssistant.content;
-    const match = /```(?:tsx|jsx|js|ts)?\n([\s\S]*?)```/.exec(text);
-    return match ? match[1].trim() : text.trim();
-  }, [messages]);
-
   return (
     <Box display="flex" height="100dvh" width="100%" gap={2}>
-      {/* Left: Chat */}
+      {/* Left: Chat Panel */}
       <Paper
         elevation={3}
         sx={{
@@ -44,7 +57,6 @@ export default function ChatArea() {
           maxWidth: "15%",
         }}
       >
-        {/* Messages */}
         <Box
           sx={{
             flex: 1,
@@ -92,7 +104,7 @@ export default function ChatArea() {
             </Box>
           ) : (
             <Virtuoso
-              style={{ height: "100%", width: "100%" }}
+              style={{ height: "100%", width: "100%", gap: 1.5 }}
               data={messages}
               itemContent={(index, msg) => {
                 const isLast = index === messages.length - 1;
@@ -132,7 +144,7 @@ export default function ChatArea() {
         </Typography>
       </Paper>
 
-      {/* Right: Code / Preview Tabs */}
+      {/* Right: Code Panel */}
       <Paper
         elevation={3}
         sx={{
@@ -143,18 +155,17 @@ export default function ChatArea() {
           p: 2,
           overflow: "hidden",
           bgcolor: "background.paper",
+          position: "relative",
         }}
       >
-        <Typography variant="h6" fontWeight={600} mb={1}>
-          Code / Preview
-        </Typography>
-
-        {lastCode ? null : (
-          <Typography variant="body2" color="text.secondary">
-            Nothing to preview yet. Generate some code to get started.
-          </Typography>
-        )}
+        <CodePanel
+          code={code}
+          setCode={setCode}
+          pendingFile={pendingFilename}
+        />
       </Paper>
     </Box>
   );
-}
+};
+
+export default ChatArea;
