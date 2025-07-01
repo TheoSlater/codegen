@@ -1,10 +1,13 @@
-// components/CodePanel.tsx
 import React, { useEffect, useRef, useCallback, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
 import "xterm/css/xterm.css";
 import { Box, Tabs, Tab, useTheme } from "@mui/material";
 import Editor from "@monaco-editor/react";
 import { useChat } from "../../context/ChatMessagesContext";
+import ShimmerText from "../ShimmerText";
+
+const PROJECT_DIR = "my-app";
+const ENTRY_FILE = `/${PROJECT_DIR}/src/App.tsx`;
 
 let webcontainerInstance: WebContainer | null = null;
 
@@ -21,23 +24,18 @@ export default function CodePanel({
   showTerminal = true,
 }: CodePanelProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const termInstance = useRef<import("xterm").Terminal | null>(null);
+  const terminalInstance = useRef<import("xterm").Terminal | null>(null);
   const debounceWriteRef = useRef<NodeJS.Timeout | null>(null);
   const [tab, setTab] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { sendMessage } = useChat();
   const theme = useTheme();
 
-  // Initialize terminal & boot webcontainer once (memoized)
   const bootWebContainer = useCallback(async () => {
     if (webcontainerInstance) return webcontainerInstance;
-
-    if (!terminalRef.current) {
-      throw new Error("Terminal DOM element not found");
-    }
+    if (!terminalRef.current) throw new Error("Terminal DOM element not found");
 
     const { Terminal } = await import("xterm");
-
     const terminal = new Terminal({
       convertEol: true,
       fontSize: 14,
@@ -49,9 +47,8 @@ export default function CodePanel({
     });
 
     terminal.open(terminalRef.current);
-    termInstance.current = terminal;
-
     terminal.write("\u001b[1;34m🔧 Booting WebContainer...\r\n\u001b[0m");
+    terminalInstance.current = terminal;
 
     const wc = await WebContainer.boot();
     webcontainerInstance = wc;
@@ -59,7 +56,6 @@ export default function CodePanel({
     return wc;
   }, []);
 
-  // Send error fix request to chat context
   const promptUserToFixError = useCallback(
     async (context: string) => {
       await sendMessage(
@@ -69,25 +65,25 @@ export default function CodePanel({
     [sendMessage]
   );
 
-  // Output handler with enhanced error detection and minimal parsing
+  const isLikelyError = (text: string) =>
+    /error|not found|failed|unexpected/i.test(text);
+
   const handleOutput = useCallback(
     (data: string) => {
-      if (!termInstance.current) return;
-      termInstance.current.write(data);
+      terminalInstance.current?.write(data);
 
       try {
         const parsed = JSON.parse(data);
-        if (parsed.error) {
+        if (parsed?.error) {
           promptUserToFixError(JSON.stringify(parsed.error));
           return;
         }
-      } catch {}
+      } catch {
+        // Ignore parse error
+      }
 
-      if (/error|not found|failed|unexpected/i.test(data)) {
-        if (debounceWriteRef.current !== null) {
-          clearTimeout(debounceWriteRef.current);
-        }
-
+      if (isLikelyError(data)) {
+        if (debounceWriteRef.current) clearTimeout(debounceWriteRef.current);
         debounceWriteRef.current = setTimeout(() => {
           promptUserToFixError(data);
         }, 1000);
@@ -96,40 +92,28 @@ export default function CodePanel({
     [promptUserToFixError]
   );
 
-  // Boot and setup environment on mount
-  useEffect(() => {
-    let terminal: import("xterm").Terminal | undefined;
-    let isMounted = true;
+  const initializeEnvironment = useCallback(async () => {
+    const wc = await bootWebContainer();
+    const terminal = terminalInstance.current;
+    if (!terminal) return;
 
-    const boot = async () => {
-      const wc = await bootWebContainer();
-      if (!isMounted) return;
+    const write = (msg: string) =>
+      terminal.write(`\u001b[1;36m${msg}\r\n\u001b[0m`);
 
-      terminal = termInstance.current!;
-      terminal.write(
-        "\u001b[1;36m📦 Creating Vite React project...\r\n\u001b[0m"
-      );
-
+    try {
+      write("📦 Creating Vite React project...");
       const create = await wc.spawn("npm", [
         "create",
         "vite@latest",
-        "my-app",
+        PROJECT_DIR,
         "--",
         "--template",
         "react-ts",
         "--force",
       ]);
-
-      create.output.pipeTo(
-        new WritableStream({
-          write: (chunk) => {
-            handleOutput(chunk);
-          },
-        })
-      );
-
+      create.output.pipeTo(new WritableStream({ write: handleOutput }));
       const writer = create.input.getWriter();
-      await new Promise((r) => setTimeout(r, 2500));
+      await new Promise((res) => setTimeout(res, 2500));
       await writer.write("y\n");
       writer.releaseLock();
 
@@ -139,31 +123,18 @@ export default function CodePanel({
         return;
       }
 
-      terminal.write("\u001b[1;36m📦 Installing dependencies...\r\n\u001b[0m");
-      const install = await wc.spawn("bash", [
-        "-c",
-        "cd my-app && npm install",
-      ]);
-      install.output.pipeTo(
-        new WritableStream({
-          write: (chunk) => handleOutput(chunk),
-        })
-      );
-
+      write("📦 Installing dependencies...");
+      const install = await wc.spawn("bash", ["-c", `cd ${PROJECT_DIR} && npm install`]);
+      install.output.pipeTo(new WritableStream({ write: handleOutput }));
       const installExit = await install.exit;
       if (installExit !== 0) {
         await promptUserToFixError("Dependency installation failed.");
         return;
       }
 
-      terminal.write("\u001b[1;36m🚀 Starting Vite dev server...\r\n\u001b[0m");
-      const dev = await wc.spawn("bash", ["-c", "cd my-app && npm run dev"]);
-
-      dev.output.pipeTo(
-        new WritableStream({
-          write: (chunk) => handleOutput(chunk),
-        })
-      );
+      write("🚀 Starting Vite dev server...");
+      const dev = await wc.spawn("bash", ["-c", `cd ${PROJECT_DIR} && npm run dev`]);
+      dev.output.pipeTo(new WritableStream({ write: handleOutput }));
 
       dev.exit.then((exitCode) => {
         if (exitCode !== 0) {
@@ -173,61 +144,52 @@ export default function CodePanel({
 
       wc.on("server-ready", (_port, url) => {
         setPreviewUrl(url);
-        terminal?.write(`\u001b[1;32m✅ Server ready at ${url}\r\n\u001b[0m`);
+        terminal.write(`\u001b[1;32m✅ Server ready at ${url}\r\n\u001b[0m`);
       });
 
-      // Load initial file content into editor
-      const file = await wc.fs.readFile("/my-app/src/App.tsx", "utf-8");
-      setCode(file);
-    };
-
-    boot();
-
-    return () => {
-      isMounted = false;
-      // Note: Do NOT dispose terminal here to keep it persistent
-      // terminal?.dispose();
-    };
+      const fileContent = await wc.fs.readFile(ENTRY_FILE, "utf-8");
+      setCode(fileContent);
+    } catch (err) {
+      await promptUserToFixError(`Unexpected setup error: ${String(err)}`);
+    }
   }, [bootWebContainer, handleOutput, promptUserToFixError, setCode]);
 
-  // Debounced write to WebContainer filesystem on code changes
+  useEffect(() => {
+    initializeEnvironment();
+  }, [initializeEnvironment]);
+
   useEffect(() => {
     if (!webcontainerInstance) return;
-    if (debounceWriteRef.current) clearTimeout(debounceWriteRef.current);
 
-    debounceWriteRef.current = setTimeout(async () => {
+    const timeoutId = setTimeout(async () => {
       try {
-        if (webcontainerInstance) {
-          await webcontainerInstance.fs.writeFile("/my-app/src/App.tsx", code);
-        }
-      } catch (error) {
-        console.warn("Failed to write file:", error);
+        await webcontainerInstance?.fs.writeFile(ENTRY_FILE, code);
+      } catch (err) {
+        console.warn("Failed to write file:", err);
       }
     }, 500);
 
-    return () => clearTimeout(debounceWriteRef.current!);
+    return () => clearTimeout(timeoutId);
   }, [code]);
 
-  // Tab change handler
-  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    setTab(newValue);
-  };
-
-  // Console log forwarding from iframe preview to terminal
   useEffect(() => {
-    if (!previewUrl || !termInstance.current) return;
+    if (!previewUrl || !terminalInstance.current) return;
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== new URL(previewUrl).origin) return;
       if (typeof event.data === "string" && event.data.startsWith("console:")) {
         const msg = event.data.replace("console:", "");
-        termInstance.current?.write(`\r\n${msg}\r\n`);
+        terminalInstance.current?.write(`\r\n${msg}\r\n`);
       }
     };
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [previewUrl]);
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setTab(newValue);
+  };
 
   return (
     <Box
@@ -253,7 +215,7 @@ export default function CodePanel({
       {tab === 0 && (
         <Editor
           height="calc(100% - 48px)"
-          defaultLanguage="typescript"
+          language="typescript"
           value={code}
           onChange={(value) => value !== undefined && setCode(value)}
           options={{
@@ -262,18 +224,29 @@ export default function CodePanel({
             wordWrap: "on",
             scrollBeyondLastLine: false,
           }}
-          defaultPath="/my-app/src/App.tsx"
+          defaultPath={ENTRY_FILE}
         />
       )}
 
-      {tab === 1 && previewUrl && (
-        <iframe
-          src={previewUrl}
-          style={{ flex: 1, border: "none", width: "100%" }}
-          sandbox="allow-scripts allow-same-origin"
-          title="Preview"
-        />
-      )}
+{tab === 1 && (
+  previewUrl ? (
+    <iframe
+      src={previewUrl}
+      style={{ flex: 1, border: "none", width: "100%" }}
+      sandbox="allow-scripts allow-same-origin"
+      title="Preview"
+    />
+  ) : (
+    <Box
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      height="100%"
+    >
+      <ShimmerText text="Your preview will appear here." />
+    </Box>
+  )
+)}
 
       {showTerminal && (
         <Box
