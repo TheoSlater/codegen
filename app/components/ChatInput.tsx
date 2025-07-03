@@ -7,14 +7,11 @@ import {
   Box,
   TextField,
   IconButton,
-  Popover,
-  Stack,
-  Button,
+
 } from "@mui/material";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import CancelIcon from "@mui/icons-material/Stop"; // square icon
-import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
-import { useState, useRef } from "react";
+import {  useRef } from "react";
 
 interface ChatInputProps {
   onSend: (message: string, signal: AbortSignal) => Promise<void>;
@@ -33,7 +30,6 @@ export default function ChatInput({
   cancel,
 }: ChatInputProps) {
   const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleSend = async () => {
@@ -73,12 +69,6 @@ export default function ChatInput({
     }
   };
 
-  const handleToolsClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(anchorEl ? null : event.currentTarget);
-  };
-
-  const open = Boolean(anchorEl);
-  const id = open ? "tools-popover" : undefined;
 
   return (
     <Box
@@ -139,61 +129,6 @@ export default function ChatInput({
         )}
       </IconButton>
 
-      <Box sx={{ display: "flex", justifyContent: "flex-start", mt: 1 }}>
-        <Button
-          onClick={handleToolsClick}
-          startIcon={<TuneOutlinedIcon />}
-          sx={{
-            textTransform: "none",
-            color: theme.palette.text.primary,
-            borderRadius: "12px",
-            px: 1.5,
-            py: 0.5,
-            minHeight: 0,
-          }}
-        >
-          Tools
-        </Button>
-      </Box>
-
-      <Popover
-        id={id}
-        open={open}
-        anchorEl={anchorEl}
-        onClose={() => setAnchorEl(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        PaperProps={{
-          sx: {
-            mt: 1,
-            p: 2,
-            borderRadius: "12px",
-            bgcolor: theme.palette.background.paper,
-            border: `1px solid ${theme.palette.divider}`,
-            boxShadow: 3,
-            minWidth: 200,
-          },
-        }}
-      >
-        <Stack spacing={1}>
-          <Button
-            fullWidth
-            variant="outlined"
-            size="small"
-            sx={{
-              justifyContent: "flex-start",
-              borderRadius: "10px",
-              textTransform: "none",
-            }}
-            onClick={() => {
-              setInput(input.trim() + " /search");
-              setAnchorEl(null);
-            }}
-          >
-            Search the web
-          </Button>
-        </Stack>
-      </Popover>
     </Box>
   );
 }

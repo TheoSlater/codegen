@@ -1,17 +1,46 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Paper, Typography, useTheme } from "@mui/material";
 import { useChat } from "../context/ChatMessagesContext";
 import ChatBubble from "./ChatBubble";
 import ChatInput from "./ChatInput";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { Virtuoso } from "react-virtuoso";
+import CodePanel from "./CodePanel";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import { visit } from "unist-util-visit";
 
-export default function ChatArea() {
+const ChatArea: React.FC = () => {
   const theme = useTheme();
   const { messages, isSending, sendMessage, cancel } = useChat();
   const [input, setInput] = useState("");
+  const [code, setCode] = useState<string>("");
+
+  const extractCodeBlocks = (markdown: string, language = "tsx"): string[] => {
+    const codeBlocks: string[] = [];
+    const tree = unified().use(remarkParse).parse(markdown);
+  
+    visit(tree, "code", (node: any) => {
+      if (!language || node.lang === language) {
+        codeBlocks.push(node.value);
+      }
+    });
+  
+    return codeBlocks;
+  };
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+  
+    const lastMsg = messages[messages.length - 1];
+  
+    if (lastMsg.role === "assistant") {
+      const codeBlocks = extractCodeBlocks(lastMsg.content, "tsx");
+      if (codeBlocks.length > 0 && !isSending) {
+        setCode(codeBlocks[0]);
+      }
+    }
+  }, [messages, isSending]);
 
   const handleSendInput = async (content: string) => {
     if (!content.trim()) return;
@@ -19,20 +48,10 @@ export default function ChatArea() {
     setInput("");
   };
 
-  const lastCode = useMemo(() => {
-    const reversed = [...messages].reverse();
-    const lastAssistant = reversed.find((m) => m.role === "assistant");
-    if (!lastAssistant) return "";
-    const text = lastAssistant.content;
-    const match = /```(?:tsx|jsx|js|ts)?\n([\s\S]*?)```/.exec(text);
-    return match ? match[1].trim() : text.trim();
-  }, [messages]);
-
   return (
     <Box display="flex" height="100dvh" width="100%" gap={2}>
-      {/* Left: Chat */}
-      <Paper
-        elevation={3}
+      {/* Left: Chat Panel */}
+      <Box
         sx={{
           flex: 1,
           display: "flex",
@@ -40,11 +59,9 @@ export default function ChatArea() {
           borderRadius: "10px",
           p: 2,
           overflow: "hidden",
-          bgcolor: "background.main",
-          maxWidth: "15%",
+          maxWidth: "50%",
         }}
       >
-        {/* Messages */}
         <Box
           sx={{
             flex: 1,
@@ -96,8 +113,7 @@ export default function ChatArea() {
               data={messages}
               itemContent={(index, msg) => {
                 const isLast = index === messages.length - 1;
-                const isStreaming =
-                  isLast && msg.role === "assistant" && isSending;
+                const isStreaming = isLast && msg.role === "assistant" && isSending;
 
                 return (
                   <ChatBubble
@@ -130,9 +146,9 @@ export default function ChatArea() {
         >
           Powered by AI. Generated content may be false or inaccurate.
         </Typography>
-      </Paper>
+      </Box>
 
-      {/* Right: Code / Preview Tabs */}
+      {/* Right: Code Panel */}
       <Paper
         elevation={3}
         sx={{
@@ -140,21 +156,17 @@ export default function ChatArea() {
           display: "flex",
           flexDirection: "column",
           borderRadius: "10px",
-          p: 2,
+          p: 0,
           overflow: "hidden",
           bgcolor: "background.paper",
+          position: "relative",
+          border: "none"
         }}
       >
-        <Typography variant="h6" fontWeight={600} mb={1}>
-          Code / Preview
-        </Typography>
-
-        {lastCode ? null : (
-          <Typography variant="body2" color="text.secondary">
-            Nothing to preview yet. Generate some code to get started.
-          </Typography>
-        )}
+        <CodePanel code={code} setCode={setCode} />
       </Paper>
     </Box>
   );
-}
+};
+
+export default ChatArea;

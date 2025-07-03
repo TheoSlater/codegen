@@ -4,16 +4,14 @@
 "use client";
 
 import { Box } from "@mui/material";
-import ChatArea from "../components/test/ChatArea_TEST";
+import ChatArea from "../components/ChatArea";
 import { useChat } from "../context/ChatMessagesContext";
-import BoltNavbar from "../components/Navbar";
 
 export default function Dev() {
   const { clearMessages } = useChat();
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">
-      <BoltNavbar />
       <Box
         sx={{
           flex: 1,

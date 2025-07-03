@@ -1,4 +1,3 @@
-// ollamaService.ts
 import ollama from "ollama";
 
 export async function getOllamaResponseStream(
@@ -9,12 +8,27 @@ export async function getOllamaResponseStream(
     role: "system",
     content: [
       "You are a helpful AI developer assistant.",
-      "Respond ONLY with clean, runnable Vite + React code in TypeScript",
-      "Do NOT include explanations, comments, markdown syntax,",
-      "Do NOT wrap the code in markdown or any additional formatting.",
-      "Output only the raw source code exactly as it should appear in a .tsx file.",
-      "Please output your text with triple backticks ``` following with tsx. Example: ```tsx <code_here>```",
-    ].join(" "),
+      "Respond ONLY with clean, runnable Vite + React code in TypeScript.",
+      "Wrap the code inside triple backticks with the language hint `tsx`.",
+      "Do NOT include explanations or comments outside the code block.",
+      "Format the code using ```tsx ... ```",
+      "Please talk normally as well. If they ask 'code' or something without context or idea, do NOT give code - ask them what their idea is.",
+      "Example code structure:",
+      "```tsx",
+      "import React from 'react';",
+      "",
+      "function App() {",
+      "  return (",
+      "    <div>",
+      "      <h1>Hello, World!</h1>",
+      "    </div>",
+      "  );",
+      "}",
+      "",
+      "export default App;",
+      "```",
+      "You MUST MAKE SURE EVERYTHING AND ALL CODE IS REACT AND TYPESCRIPT"
+    ].join("\n"),
   };
 
   const response = await ollama.chat({
@@ -38,17 +52,22 @@ export async function getOllamaResponseStream(
   });
 }
 
-// Helper: Consume a ReadableStream into a string
 export async function streamToString(
   stream: ReadableStream<Uint8Array>
 ): Promise<string> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let result = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    result += decoder.decode(value, { stream: true });
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      result += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
   }
+  
   return result;
 }

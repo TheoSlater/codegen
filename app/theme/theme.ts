@@ -20,13 +20,13 @@ export const darkTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: "#1de9b6", // bright but soft aqua, less electric
-      light: "#5ef1c6",
-      dark: "#139e82",
-      contrastText: "#121212", // dark text for readability on bright button
+      main: "#5c6ac4",  // deep indigo, muted but vibrant
+      light: "#8a96d1",
+      dark: "#32409d",
+      contrastText: "#f0f0f0", // light text for good readability
     },
     secondary: {
-      main: "#ff4081", // vibrant pink but without neon glow
+      main: "#ff4081", // keep your vibrant pink, it's solid
       contrastText: "#121212",
     },
     background: {
@@ -51,23 +51,9 @@ export const darkTheme = createTheme({
           borderRadius: shape.borderRadius,
           transition: "background-color 0.25s ease, box-shadow 0.25s ease",
           boxShadow: "none",
-          "&:hover": {
-            backgroundColor: "#16b295", // slightly darker aqua
-            boxShadow: "0 4px 8px rgba(29, 233, 182, 0.3)", // subtle soft shadow, no glow
-          },
-        },
-        containedPrimary: {
-          color: "#121212",
-          backgroundColor: "#1de9b6",
-          "&:hover": {
-            backgroundColor: "#16b295",
-          },
-        },
-        containedSecondary: {
-          color: "#121212",
-          backgroundColor: "#ff4081",
-          "&:hover": {
-            backgroundColor: "#e0366d",
+          '&:hover': {
+            backgroundColor: "#32409d", // darkened primary for hover
+            boxShadow: "0 0 8px rgba(92, 106, 196, 0.5)", // subtle glow on hover
           },
         },
       },
@@ -77,7 +63,7 @@ export const darkTheme = createTheme({
         root: {
           backgroundColor: "#1e1e1e",
           borderRadius: shape.borderRadius,
-          border: "1px solid rgba(255, 255, 255, 0.1)", // very subtle border for separation
+          border: "1px solid rgba(255, 255, 255, 0.1)",
         },
       },
     },
