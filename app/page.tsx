@@ -5,10 +5,10 @@
 
 import { Box } from "@mui/material";
 import ChatArea from "./components/ChatArea";
-import { useChat } from "./context/ChatMessagesContext";
+// import { useChat } from "./context/ChatMessagesContext";
 
-export default function Home() {
-  const { clearMessages } = useChat();
+export default function Dev() {
+  // const { clearMessages } = useChat();
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">

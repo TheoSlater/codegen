@@ -20,7 +20,7 @@ const ChatArea: React.FC = () => {
     const codeBlocks: string[] = [];
     const tree = unified().use(remarkParse).parse(markdown);
   
-    visit(tree, "code", (node: any) => {
+    visit(tree, "code", (node: { type: string; lang?: string | null; value: string }) => {
       if (!language || node.lang === language) {
         codeBlocks.push(node.value);
       }

@@ -37,6 +37,80 @@ const CodePanel: React.FC<CodePanelProps> = ({
     onWriteError,
   });
 
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    // Configure TypeScript compiler options for JSX
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      jsxFactory: "React.createElement",
+      jsxFragmentFactory: "React.Fragment",
+      target: monaco.languages.typescript.ScriptTarget.Latest,
+      allowNonTsExtensions: true,
+      allowJs: true,
+      allowSyntheticDefaultImports: true,
+      esModuleInterop: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    });
+
+    // Add React type definitions
+    const reactTypes = `
+declare module 'react' {
+  export interface ReactElement<P = any, T extends string | JSXElementConstructor<any> = string | JSXElementConstructor<any>> {
+    type: T;
+    props: P;
+    key: Key | null;
+  }
+  export type JSXElementConstructor<P> = ((props: P) => ReactElement<any, any> | null) | (new (props: P) => Component<any, any>);
+  export type Key = string | number;
+  export class Component<P, S> {
+    props: Readonly<P>;
+    state: Readonly<S>;
+    constructor(props: P);
+    render(): ReactNode;
+  }
+  export type ReactNode = ReactElement | string | number | ReactFragment | ReactPortal | boolean | null | undefined;
+  export type ReactFragment = {} | ReactNodeArray;
+  export interface ReactNodeArray extends Array<ReactNode> {}
+  export type ReactPortal = any;
+  export function createElement<P extends {}>(
+    type: string | JSXElementConstructor<P>,
+    props?: P | null,
+    ...children: ReactNode[]
+  ): ReactElement<P>;
+  export const Fragment: JSXElementConstructor<{}>;
+}
+
+declare global {
+  const React: typeof import('react');
+  namespace JSX {
+    interface Element extends React.ReactElement<any, any> {}
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+}
+`;
+
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      reactTypes,
+      'file:///node_modules/@types/react/index.d.ts'
+    );
+
+    // Add a default React import for the editor
+    const defaultReactImport = `import React from 'react';\n`;
+    
+    // Check if React is already imported
+    const model = editor.getModel();
+    if (model && !model.getValue().includes('import React')) {
+      model.setValue(defaultReactImport + model.getValue());
+    }
+
+    // Disable some strict checks that might cause issues
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false,
+    });
+  };
+
   return (
     <Box
       display="flex"
@@ -80,7 +154,8 @@ const CodePanel: React.FC<CodePanelProps> = ({
                 wordWrap: "on",
                 scrollBeyondLastLine: false,
               }}
-              defaultPath={ENTRY_FILE}
+              path={ENTRY_FILE}
+              onMount={handleEditorDidMount}
             />
           ) : (
             <Box
