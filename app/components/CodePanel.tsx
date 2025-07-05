@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import "xterm/css/xterm.css";
 import { Box, Tabs, Tab, useTheme } from "@mui/material";
 import Editor from "@monaco-editor/react";
@@ -7,7 +7,46 @@ import ErrorFixModal from "./ErrorFixModal";
 import { CodePanelProps, ENTRY_FILE } from "../types/types";
 import { useCodePanel } from "../hooks/useCodePanel";
 
-const CodePanel: React.FC<CodePanelProps> = ({
+// Memoized ShimmerText components to prevent re-renders
+const LoadingShimmer = React.memo(() => (
+  <Box
+    display="flex"
+    alignItems="center"
+    justifyContent="center"
+    height="100%"
+  >
+    <ShimmerText text="Loading your code..." />
+  </Box>
+));
+
+const PreviewShimmer = React.memo(() => (
+  <Box
+    display="flex"
+    alignItems="center"
+    justifyContent="center"
+    height="100%"
+  >
+    <ShimmerText text="Updating preview..." />
+  </Box>
+));
+
+const PreviewPlaceholder = React.memo(() => (
+  <Box
+    display="flex"
+    alignItems="center"
+    justifyContent="center"
+    height="100%"
+  >
+    <ShimmerText text="Your preview will appear here." />
+  </Box>
+));
+
+LoadingShimmer.displayName = 'LoadingShimmer';
+PreviewShimmer.displayName = 'PreviewShimmer';
+PreviewPlaceholder.displayName = 'PreviewPlaceholder';
+
+// Optimized main component with memoization
+const CodePanel: React.FC<CodePanelProps> = React.memo(({
   code,
   setCode,
   showTerminal = true,
@@ -37,7 +76,21 @@ const CodePanel: React.FC<CodePanelProps> = ({
     onWriteError,
   });
 
-  const handleEditorDidMount = (editor: any, monaco: any) => {
+  // Memoized editor options to prevent re-creation
+  const editorOptions = useMemo(() => ({
+    fontSize: 14,
+    minimap: { enabled: false },
+    wordWrap: "on" as const,
+    scrollBeyondLastLine: false,
+  }), []);
+
+  // Memoized default React import
+  const defaultReactImport = useMemo(() => 'import React from "react";\n\n', []);
+
+  const handleEditorDidMount = useCallback((
+    editor: import("monaco-editor").editor.IStandaloneCodeEditor, 
+    monaco: typeof import("monaco-editor")
+  ) => {
     // Configure TypeScript compiler options for JSX
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       jsx: monaco.languages.typescript.JsxEmit.React,
@@ -48,55 +101,7 @@ const CodePanel: React.FC<CodePanelProps> = ({
       allowJs: true,
       allowSyntheticDefaultImports: true,
       esModuleInterop: true,
-      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
     });
-
-    // Add React type definitions
-    const reactTypes = `
-declare module 'react' {
-  export interface ReactElement<P = any, T extends string | JSXElementConstructor<any> = string | JSXElementConstructor<any>> {
-    type: T;
-    props: P;
-    key: Key | null;
-  }
-  export type JSXElementConstructor<P> = ((props: P) => ReactElement<any, any> | null) | (new (props: P) => Component<any, any>);
-  export type Key = string | number;
-  export class Component<P, S> {
-    props: Readonly<P>;
-    state: Readonly<S>;
-    constructor(props: P);
-    render(): ReactNode;
-  }
-  export type ReactNode = ReactElement | string | number | ReactFragment | ReactPortal | boolean | null | undefined;
-  export type ReactFragment = {} | ReactNodeArray;
-  export interface ReactNodeArray extends Array<ReactNode> {}
-  export type ReactPortal = any;
-  export function createElement<P extends {}>(
-    type: string | JSXElementConstructor<P>,
-    props?: P | null,
-    ...children: ReactNode[]
-  ): ReactElement<P>;
-  export const Fragment: JSXElementConstructor<{}>;
-}
-
-declare global {
-  const React: typeof import('react');
-  namespace JSX {
-    interface Element extends React.ReactElement<any, any> {}
-    interface IntrinsicElements {
-      [elemName: string]: any;
-    }
-  }
-}
-`;
-
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(
-      reactTypes,
-      'file:///node_modules/@types/react/index.d.ts'
-    );
-
-    // Add a default React import for the editor
-    const defaultReactImport = `import React from 'react';\n`;
     
     // Check if React is already imported
     const model = editor.getModel();
@@ -109,7 +114,38 @@ declare global {
       noSemanticValidation: false,
       noSyntaxValidation: false,
     });
-  };
+  }, [defaultReactImport]);
+
+  // Memoized box styles to prevent re-creation
+  const containerStyles = useMemo(() => ({
+    borderRadius: 1,
+    border: `1px solid ${theme.palette.divider}`,
+  }), [theme.palette.divider]);
+
+  const terminalStyles = useMemo(() => ({
+    height: "100%",
+    width: "100%",
+    backgroundColor: "#000",
+    color: "#fff",
+    fontFamily: "monospace",
+    overflow: "hidden",
+    position: "relative" as const,
+    display: tab === 2 ? "block" : "none",
+  }), [tab]);
+
+  // Memoized iframe styles to prevent object re-creation
+  const iframeStyles = useMemo(() => ({ 
+    flex: 1, 
+    border: "none", 
+    width: "100%" 
+  }), []);
+
+  // Memoized editor change handler
+  const handleEditorChange = useCallback((value: string | undefined) => {
+    if (value !== undefined) {
+      setCode(value);
+    }
+  }, [setCode]);
 
   return (
     <Box
@@ -117,10 +153,7 @@ declare global {
       flexDirection="column"
       height="100%"
       overflow="hidden"
-      sx={{
-        borderRadius: 1,
-        border: `1px solid ${theme.palette.divider}`,
-      }}
+      sx={containerStyles}
     >
       <ErrorFixModal
         open={errorModalOpen}
@@ -147,25 +180,14 @@ declare global {
               height="calc(100% - 48px)"
               language="typescript"
               value={code}
-              onChange={(value) => value !== undefined && setCode(value)}
-              options={{
-                fontSize: 14,
-                minimap: { enabled: false },
-                wordWrap: "on",
-                scrollBeyondLastLine: false,
-              }}
+              onChange={handleEditorChange}
+              options={editorOptions}
+              theme="vscode-dark"
               path={ENTRY_FILE}
               onMount={handleEditorDidMount}
             />
           ) : (
-            <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              height="100%"
-            >
-              <ShimmerText text="Loading your code..." />
-            </Box>
+            <LoadingShimmer />
           )}
         </>
       )}
@@ -174,54 +196,33 @@ declare global {
       {tab === 1 && (
         <>
           {shouldShowPreviewShimmer ? (
-            <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              height="100%"
-            >
-              <ShimmerText text="Updating preview..." />
-            </Box>
+            <PreviewShimmer />
           ) : previewUrl ? (
             <iframe
               ref={previewIframeRef}
               src={previewUrl}
-              style={{ flex: 1, border: "none", width: "100%" }}
+              style={iframeStyles}
               sandbox="allow-scripts allow-same-origin"
               title="Preview"
               onLoad={handleIframeLoad}
             />
           ) : (
-            <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              height="100%"
-            >
-              <ShimmerText text="Your preview will appear here." />
-            </Box>
+            <PreviewPlaceholder />
           )}
         </>
       )}
 
-      {/* Terminal Tab */}
+      {/* Terminal Tab - Enhanced with command execution capabilities */}
       {showTerminal && (
         <Box
           ref={terminalRef}
-          sx={{
-            height: "100%",
-            width: "100%",
-            backgroundColor: "#000",
-            color: "#fff",
-            fontFamily: "monospace",
-            overflow: "hidden",
-            position: "relative",
-            display: tab === 2 ? "block" : "none",
-          }}
+          sx={terminalStyles}
         />
       )}
     </Box>
   );
-};
+});
+
+CodePanel.displayName = 'CodePanel';
 
 export default CodePanel;

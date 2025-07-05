@@ -117,7 +117,8 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
           }, 100);
         },
       });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // TODO: Fix this below comment
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars 
     } catch (err) {
       // Error already handled in codeWriterService
     }
@@ -126,14 +127,25 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = e.target as HTMLIFrameElement;
     try {
+      // Check if we can access the iframe document (same-origin)
       const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (iframeDoc) {
+      if (iframeDoc && iframeDoc.location.protocol === window.location.protocol) {
         const script = iframeDoc.createElement('script');
         script.textContent = ErrorDetectionUtils.createIframeErrorScript();
         iframeDoc.head.appendChild(script);
+        console.log('Successfully injected error handling into iframe');
       }
     } catch (err) {
-      console.warn('Cannot inject error handling into iframe due to cross-origin restrictions:', err);
+      // Expected when iframe is cross-origin (different port/domain)
+      // This is normal for WebContainer previews and doesn't need a warning
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('cross-origin') || errorMessage.includes('Permission denied')) {
+        // Silently handle expected cross-origin restrictions
+        console.debug('Iframe is cross-origin, error injection skipped (this is normal)');
+      } else {
+        // Log unexpected errors
+        console.warn('Unexpected error accessing iframe:', err);
+      }
     }
   }, []);
 

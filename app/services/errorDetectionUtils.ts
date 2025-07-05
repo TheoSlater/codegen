@@ -41,16 +41,19 @@ export class ErrorDetectionUtils {
       return `
         window.addEventListener('error', function(event) {
           try {
-            window.parent.postMessage({
-              type: 'error',
-              message: event.message,
-              filename: event.filename,
-              lineno: event.lineno,
-              colno: event.colno,
-              stack: event.error ? event.error.stack : ''
-            }, '*');
+            // Only send error if it's not a cross-origin related error
+            if (event.message && !event.message.includes('Script error') && !event.message.includes('cross-origin')) {
+              window.parent.postMessage({
+                type: 'error',
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                stack: event.error ? event.error.stack : ''
+              }, '*');
+            }
           } catch(e) {
-            console.error('Failed to send error to parent:', e);
+            // Silently ignore postMessage errors (expected for cross-origin iframes)
           }
         });
         
@@ -65,7 +68,7 @@ export class ErrorDetectionUtils {
               stack: event.reason && event.reason.stack ? event.reason.stack : ''
             }, '*');
           } catch(e) {
-            console.error('Failed to send rejection to parent:', e);
+            // Silently ignore postMessage errors (expected for cross-origin iframes)
           }
         });
         
@@ -74,9 +77,13 @@ export class ErrorDetectionUtils {
         console.error = function(...args) {
           originalError.apply(console, args);
           try {
-            window.parent.postMessage('error:' + args.join(' '), '*');
+            const message = args.join(' ');
+            // Filter out noise from cross-origin errors
+            if (!message.includes('cross-origin') && !message.includes('Script error')) {
+              window.parent.postMessage('error:' + message, '*');
+            }
           } catch(e) {
-            // Ignore
+            // Silently ignore postMessage errors
           }
         };
       `;

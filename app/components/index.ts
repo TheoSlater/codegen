@@ -14,3 +14,12 @@ export { ErrorDetectionUtils } from '../services/errorDetectionUtils';
 export { useCodePanel } from '../hooks/useCodePanel';
 
 export { default as CodePanel } from '../components/CodePanel';
+
+// Components
+export { default as ChatArea } from './ChatArea';
+export { default as ChatBubble } from './ChatBubble';
+export { default as ChatInput } from './ChatInput';
+export { default as CommandExecution } from './CommandExecution';
+export { default as CommandTestPanel } from './CommandTestPanel';
+export { default as ErrorFixModal } from './ErrorFixModal';
+export { default as ShimmerText } from './ShimmerText';

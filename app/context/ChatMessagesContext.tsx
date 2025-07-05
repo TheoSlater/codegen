@@ -6,7 +6,8 @@ const ChatMessagesContext = createContext<ReturnType<
   typeof useChatMessages
 > | null>(null);
 
-export const ChatMessagesProvider = ({
+// Memoized provider to prevent unnecessary re-renders
+export const ChatMessagesProvider = React.memo(({
   children,
 }: {
   children: React.ReactNode;
@@ -17,7 +18,9 @@ export const ChatMessagesProvider = ({
       {children}
     </ChatMessagesContext.Provider>
   );
-};
+});
+
+ChatMessagesProvider.displayName = 'ChatMessagesProvider';
 
 export const useChat = () => {
   const ctx = useContext(ChatMessagesContext);

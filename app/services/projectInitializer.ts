@@ -21,8 +21,8 @@ export class ProjectInitializer {
         throw new Error("WebContainer not available");
       }
 
-      await this.createViteProject(wc, onOutput, onError);
-      await this.installDependencies(wc, onOutput, onError);
+      await this.createViteProject(wc, onOutput);
+      await this.installDependencies(wc, onOutput);
       await this.startDevServer(wc, onOutput, onError, onPreviewReady);
       await this.loadInitialCode(wc, onCodeLoaded, onError);
     } catch (err) {
@@ -32,8 +32,7 @@ export class ProjectInitializer {
 
   private async createViteProject(
     wc: WebContainer,
-    onOutput: (data: string) => void,
-    onError: (error: string) => void
+    onOutput: (data: string) => void
   ): Promise<void> {
     this.webContainerService.writeToTerminal("📦 Creating Vite React project...");
     
@@ -61,12 +60,11 @@ export class ProjectInitializer {
     }
 
     // Verify project structure
-    await this.verifyProjectStructure(wc, onError);
+    await this.verifyProjectStructure(wc);
   }
 
   private async verifyProjectStructure(
-    wc: WebContainer,
-    onError: (error: string) => void
+    wc: WebContainer
   ): Promise<void> {
     this.webContainerService.writeToTerminal("📂 Checking project files...");
     
@@ -84,8 +82,7 @@ export class ProjectInitializer {
 
   private async installDependencies(
     wc: WebContainer,
-    onOutput: (data: string) => void,
-    onError: (error: string) => void
+    onOutput: (data: string) => void
   ): Promise<void> {
     this.webContainerService.writeToTerminal("📦 Installing dependencies...");
     

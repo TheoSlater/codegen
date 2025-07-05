@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Your existing config options here...
+  // WebContainer and SharedArrayBuffer support
+  experimental: {
+    esmExternals: 'loose',
+  },
 
   async headers() {
     return [
@@ -15,6 +18,10 @@ const nextConfig: NextConfig = {
           {
             key: "Cross-Origin-Embedder-Policy",
             value: "require-corp",
+          },
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
           },
         ],
       },

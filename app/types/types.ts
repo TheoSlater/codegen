@@ -40,3 +40,24 @@ export interface TabState {
 
 export const PROJECT_DIR = "my-app";
 export const ENTRY_FILE = `/${PROJECT_DIR}/src/App.tsx`;
+
+export interface CommandResult {
+  success: boolean;
+  output: string;
+  exitCode: number;
+  error?: string;
+}
+
+// New types for command execution
+export interface CommandExecutionOptions {
+  workingDirectory?: string;
+  timeout?: number;
+  onOutput?: (data: string) => void;
+  onError?: (error: string) => void;
+}
+
+export interface TerminalCommandHandler {
+  executeCommand: (command: string, options?: CommandExecutionOptions) => Promise<CommandResult>;
+  executeMultipleCommands: (commands: string[], options?: CommandExecutionOptions) => Promise<CommandResult[]>;
+  isExecuting: boolean;
+}
