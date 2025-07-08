@@ -23,7 +23,7 @@
     "axios": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.19.1",
+    "framer-motion": "^12.23.0",
     "ldrs": "^1.1.7",
     "lucide-react": "^0.523.0",
     "motion": "^12.19.1",

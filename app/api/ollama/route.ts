@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOllamaResponseStream } from "@/app/hooks/ollamaService";
+import { ChatMessage } from "@/app/types/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, model } = await req.json();
+    const { messages, model }: { messages: ChatMessage[], model: string } = await req.json();
 
     // Get a ReadableStream from Ollama streaming helper
     const stream = await getOllamaResponseStream(messages, model);

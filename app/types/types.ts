@@ -1,6 +1,7 @@
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  images?: string[]; // Base64 encoded images for vision models
 }
 
 export type SendMessageFn = (content: string) => Promise<void>;

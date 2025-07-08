@@ -26,7 +26,7 @@ export const darkTheme = createTheme({
       contrastText: "#f0f0f0", // light text for good readability
     },
     secondary: {
-      main: "#ff4081", // keep your vibrant pink, it's solid
+      main: "#ff4081", 
       contrastText: "#121212",
     },
     background: {
@@ -49,12 +49,7 @@ export const darkTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: shape.borderRadius,
-          transition: "background-color 0.25s ease, box-shadow 0.25s ease",
           boxShadow: "none",
-          '&:hover': {
-            backgroundColor: "#32409d", // darkened primary for hover
-            boxShadow: "0 0 8px rgba(92, 106, 196, 0.5)", // subtle glow on hover
-          },
         },
       },
     },

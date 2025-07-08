@@ -1,7 +1,8 @@
 import ollama from "ollama";
+import { ChatMessage } from "../types/types";
 
 export async function getOllamaResponseStream(
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
   model: string
 ): Promise<ReadableStream<Uint8Array>> {
   const systemPrompt = {
@@ -14,6 +15,7 @@ export async function getOllamaResponseStream(
       "- Run bash commands inside a fully functional terminal",
       "- Generate clean, runnable React components in TypeScript (Vite setup)",
       "- Modify, inspect, and reason about code or project files",
+      "- Analyze images when provided (vision models only)",
       "",
       "## 🛠️ Command Execution",
       "- Wrap any shell commands in triple backticks with `bash` for automatic execution",
@@ -46,7 +48,13 @@ export async function getOllamaResponseStream(
       "export default App;",
       "```",
       "",
-      "## 📦 Dependency Handling",
+      "## � Image Analysis (Vision Models)",
+      "- When images are provided, analyze them thoroughly",
+      "- Generate React components that recreate UI designs from images",
+      "- Describe what you see in detail",
+      "- Extract text, colors, layouts, and design patterns",
+      "",
+      "## �📦 Dependency Handling",
       "- If the code depends on any packages, include the corresponding `npm install` command **before** the code",
       "- Mention types packages (e.g., `@types/react`) when needed",
       "",
@@ -84,12 +92,30 @@ export async function getOllamaResponseStream(
       "export default Button;",
       "```"
     ].join("\n")
-    
   };
+
+  // Convert messages to Ollama format, handling images
+  const ollamaMessages = messages.map(msg => {
+    const ollamaMsg: {
+      role: string;
+      content: string;
+      images?: string[];
+    } = {
+      role: msg.role,
+      content: msg.content
+    };
+    
+    // Add images if they exist (for vision models)
+    if (msg.images && msg.images.length > 0) {
+      ollamaMsg.images = msg.images;
+    }
+    
+    return ollamaMsg;
+  });
 
   const response = await ollama.chat({
     model,
-    messages: [systemPrompt, ...messages],
+    messages: [systemPrompt, ...ollamaMessages],
     stream: true,
   });
 

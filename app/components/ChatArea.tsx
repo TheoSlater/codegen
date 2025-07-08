@@ -42,9 +42,9 @@ const ChatArea: React.FC = () => {
     }
   }, [messages, isSending]);
 
-  const handleSendInput = async (content: string) => {
+  const handleSendInput = async (content: string, images?: string[]) => {
     if (!content.trim()) return;
-    await sendMessage(content);
+    await sendMessage(content, images);
     setInput("");
   };
 

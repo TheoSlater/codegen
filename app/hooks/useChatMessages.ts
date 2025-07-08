@@ -11,7 +11,7 @@ const MAX_MESSAGES = 50;
 export function useChatMessages(): {
   messages: ChatMessage[];
   isSending: boolean;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, images?: string[]) => Promise<void>;
   generateCode: (prompt: string) => Promise<void>;
   cancel: () => void;
   clearMessages: () => void;
@@ -120,7 +120,7 @@ export function useChatMessages(): {
 
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, images?: string[]) => {
       if (!content.trim()) return;
 
       if (abortControllerRef.current) {
@@ -129,7 +129,11 @@ export function useChatMessages(): {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const userMsg: ChatMessage = { role: "user", content };
+      const userMsg: ChatMessage = { 
+        role: "user", 
+        content,
+        ...(images && images.length > 0 ? { images } : {})
+      };
       setMessages((prev) => {
         const assistantMsg: ChatMessage = { role: "assistant", content: "" };
         const updated = prev.length >= MAX_MESSAGES 
