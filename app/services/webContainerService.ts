@@ -372,11 +372,7 @@ export class WebContainerService {
     while (this.commandQueue.length > 0) {
       const task = this.commandQueue.shift();
       if (task) {
-        try {
-          await task();
-        } catch (error) {
-          console.error('Queue task error:', error);
-        }
+        await task();
       }
     }
     

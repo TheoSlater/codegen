@@ -1,5 +1,5 @@
 {
-  "name": "arkgen",
+  "name": "stak.new",
   "version": "1.0.4",
   "private": true,
   "scripts": {
@@ -15,6 +15,7 @@
     "@emotion/styled": "^11.14.0",
     "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^7.1.1",
+    "@mui/lab": "^7.0.0-beta.14",
     "@mui/material": "^7.1.1",
     "@react-spring/web": "^10.0.1",
     "@webcontainer/api": "^1.6.1",

@@ -99,7 +99,7 @@ const ChatArea: React.FC = () => {
               >
                 <AutoAwesomeIcon sx={{ color: "white", fontSize: 32 }} />
               </Box>
-              <Typography variant="h4">Welcome to CodeGen</Typography>
+              <Typography variant="h4">Welcome to Stak</Typography>
               <Typography
                 variant="body2"
                 sx={{ mt: 1, color: "text.secondary" }}
@@ -124,7 +124,8 @@ const ChatArea: React.FC = () => {
                   />
                 );
               }}
-              followOutput={isSending}
+              followOutput="smooth"
+              alignToBottom
             />
           )}
         </Box>
