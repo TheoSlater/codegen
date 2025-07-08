@@ -3,7 +3,7 @@ import type { Terminal } from "xterm";
 import { CommandResult, CommandExecutionOptions, ENTRY_FILE } from "../types/types";
 import { stripAnsiCodes, cleanTerminalOutput } from "../utils/ansiUtils";
 
-// Dynamic imports for browser-only libraries
+// fitaddon is the addon for xterm.js to fit the terminal to the container size
 type FitAddon = import("@xterm/addon-fit").FitAddon;
 
 let webcontainerInstance: WebContainer | null = null;

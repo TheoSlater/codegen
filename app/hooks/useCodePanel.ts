@@ -46,7 +46,7 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
   const handleFixError = useCallback(async () => {
     setErrorModalOpen(false);
     await sendMessage(
-      `⚠️ I noticed an error while running your code:\n\n${errorContext.trim()}\n\nWould you like me to try fixing it?`
+      `⚠️ I noticed an error while running your code:\n\n${errorContext.trim()}\n\nWould you like to try fixing it?`
     );
   }, [sendMessage, errorContext]);
 
@@ -112,7 +112,7 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
         onTabSwitch: () => {
           setShowPreviewShimmer(true);
           setTimeout(() => {
-            setTab(1); // Switch to preview tab
+            // setTab(1); // TODO: FIX THIS. Doesnt do anything rn, finding alternatives
             setShowPreviewShimmer(false);
           }, 100);
         },

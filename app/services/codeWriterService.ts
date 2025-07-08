@@ -19,11 +19,9 @@ export class CodeWriterService {
   async writeCode(options: CodeWriteOptions): Promise<void> {
     const {
       code,
-      isGenerated,
       onWriteStart,
       onWriteSuccess,
       onWriteError,
-      onTabSwitch,
     } = options;
 
     if (!code?.trim()) {
@@ -39,13 +37,6 @@ export class CodeWriterService {
       
       onWriteSuccess?.();
       
-      // If this is generated code, trigger tab switch after successful write
-      if (isGenerated && onTabSwitch) {
-        // Small delay to ensure the write is processed
-        setTimeout(() => {
-          onTabSwitch();
-        }, 500);
-      }
     } catch (err) {
       console.warn("Failed to write file:", err);
       const errorMessage = `Failed to write file: ${String(err)}`;

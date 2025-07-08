@@ -2,7 +2,7 @@ import { CommandExecutionService } from './commandExecutionService';
 import { CommandResult } from '../types/types';
 
 /**
- * Simple AI Command Service
+ * Simple AI Command Service thank you stackoverflow !
  * Executes AI commands and automatically starts the dev server
  */
 export class AICommandService {

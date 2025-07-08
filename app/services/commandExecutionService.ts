@@ -45,7 +45,7 @@ export class CommandExecutionService {
     });
   }
 
-  // Common commands for React/Vite projects
+  // common commands
   async installPackage(packageName: string, isDev: boolean = false): Promise<CommandResult> {
     const flag = isDev ? "--save-dev" : "--save";
     return this.executeCommand(`npm install ${flag} ${packageName}`);
@@ -71,7 +71,7 @@ export class CommandExecutionService {
     return this.executeCommand("npm --version");
   }
 
-  // AI-specific methods
+  // flippin ai specific methods
   async executeAICommands(aiResponse: string, onOutput?: (data: string) => void): Promise<CommandResult[]> {
     return this.webContainerService.executeAICommands(aiResponse, {
       workingDirectory: `/${PROJECT_DIR}`,
@@ -115,7 +115,7 @@ export class CommandExecutionService {
       }
     }
 
-    return [...new Set(commands)]; // Remove duplicates
+    return [...new Set(commands)]; // remove ant duplicates
   }
 
   // Enhanced command validation
