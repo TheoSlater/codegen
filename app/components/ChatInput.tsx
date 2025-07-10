@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-
+import React, { useRef, useCallback, useMemo, useState } from "react";
 import {
   useTheme,
   Box,
@@ -14,7 +13,6 @@ import {
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import CancelIcon from "@mui/icons-material/Stop";
 import ImageIcon from "@mui/icons-material/Image";
-import { useRef, useCallback, useMemo, useState } from "react";
 import { useModel } from "../context/ModelContext";
 import { useImageUpload, ImageData } from "../hooks/useImageUpload";
 import DragOverlay from "./DragOverlay";
@@ -193,10 +191,8 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
         onDragLeave={isVisionModel ? handleDragLeave : undefined}
         onDrop={isVisionModel ? handleDrop : undefined}
       >
-        {/* Drag overlay */}
         <DragOverlay isDragOver={isDragOver} isVisionModel={isVisionModel} />
 
-        {/* Image preview thumbnails */}
         <ImageThumbnails
           selectedImages={selectedImages}
           onImageClick={openImagePreview}
@@ -224,7 +220,6 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
           sx={textFieldStyles}
         />
 
-        {/* Hidden file input */}
         <input
           type="file"
           ref={fileInputRef}

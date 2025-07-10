@@ -22,6 +22,7 @@ export { default as ChatInput } from './ChatInput';
 export { default as CommandExecution } from './CommandExecution';
 export { default as CommandTestPanel } from './CommandTestPanel';
 export { default as ErrorFixModal } from './ErrorFixModal';
+export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as ShimmerText } from './ShimmerText';
 export { default as DragOverlay } from './DragOverlay';
 export { default as ImageThumbnails } from './ImageThumbnails';

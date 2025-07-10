@@ -1,12 +1,19 @@
 {
   "name": "stak.dev",
-  "version": "1.0.4",
+  "version": "1.0.0",
+  "description": "An all-in-one developer platform that simplifies building modern, responsive web applications with integrated AI capabilities",
+  "author": "Theo Slater",
+  "license": "MIT",
+  "keywords": ["nextjs", "react", "ai", "development", "webcontainer", "coding-assistant"],
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit",
+    "analyze": "ANALYZE=true npm run build"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

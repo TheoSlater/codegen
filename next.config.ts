@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // WebContainer and SharedArrayBuffer support
-  experimental: {
-    esmExternals: 'loose',
-  },
+  // Required for WebContainer API and SharedArrayBuffer support
+  serverExternalPackages: ['@webcontainer/api'],
 
   async headers() {
     return [

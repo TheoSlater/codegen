@@ -61,53 +61,72 @@ This project aims to accelerate web development by combining a scalable architec
 
 ### Prerequisites
 
-This project requires the following dependencies:
-
-- **Programming Language:** TypeScript
-- **Package Manager:** Npm
+- **Node.js** 18.0 or higher
+- **npm** 9.0 or higher
+- **Ollama** (for AI functionality)
 
 ### Installation
 
-Build stak.dev from the source and install dependencies:
-
 1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/TheoSlater/stak.dev
+   cd stak.dev
+   ```
 
-    ```sh
-     git clone https://github.com/TheoSlater/stak.dev
-    ```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-2. **Navigate to the project directory:**
+3. **Set up environment variables:**
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local with your configuration
+   ```
 
-    ```sh
-     cd stak.dev
-    ```
-
-3. **Install the dependencies:**
-
-**Using [npm](https://www.npmjs.com/):**
-
-```sh
-❯ npm install
-```
+4. **Install and setup Ollama:**
+   - Download from [https://ollama.com/download](https://ollama.com/download)
+   - Install a code model:
+     ```bash
+     ollama pull codellama
+     # Or use llama3.2-vision for image support
+     ollama pull llama3.2-vision
+     ```
 
 ### Usage
 
-Run the project with:
-
-**Using [npm](https://www.npmjs.com/):**
-
-```sh
+Start the development server:
+```bash
 npm run dev
 ```
 
-### Install Ollama (REQUIRED)
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-1. **Download Ollama: [https://ollama.com/download]**
-2. **Install codellama**
-    ```sh
-     ollama pull codellama
-     ```
-     That's it! All set. Just run the main project and should take a little while but will then get started.
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run lint:fix` - Fix ESLint errors
+- `npm run type-check` - Run TypeScript type checking
+
+### Features
+
+✨ **Core Features:**
+- 🎨 Beautiful, responsive UI with Material-UI components
+- 🤖 AI-powered code generation and assistance
+- 🖼️ Image upload and analysis (with vision models)
+- 💻 In-browser code execution with WebContainer
+- 🎨 Dark/light theme support
+- 📱 Mobile-responsive design
+
+🛠️ **Developer Experience:**
+- ⚡ Fast development with Next.js 15
+- 🔷 Full TypeScript support
+- 🎯 Component-based architecture
+- 🧪 Error boundaries for robust error handling
+- 📦 Optimized build configuration
      
 
 
