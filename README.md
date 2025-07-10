@@ -73,13 +73,13 @@ Build stak.dev from the source and install dependencies:
 1. **Clone the repository:**
 
     ```sh
-    ❯ git clone https://github.com/TheoSlater/stak.dev
+     git clone https://github.com/TheoSlater/stak.dev
     ```
 
 2. **Navigate to the project directory:**
 
     ```sh
-    ❯ cd stak.dev
+     cd stak.dev
     ```
 
 3. **Install the dependencies:**
@@ -97,8 +97,19 @@ Run the project with:
 **Using [npm](https://www.npmjs.com/):**
 
 ```sh
-npm start
+npm run dev
 ```
+
+### Install Ollama (REQUIRED)
+
+1. **Download Ollama: [https://ollama.com/download]**
+2. **Install codellama**
+    ```sh
+     ollama pull codellama
+     ```
+     That's it! All set. Just run the main project and should take a little while but will then get started.
+     
+
 
 ---
 
