@@ -4,10 +4,55 @@ import { useModel } from "../context/ModelContext";
 import { useCommandExecution } from "./useCommandExecution";
 import { CommandExecutionService } from "../services/commandExecutionService";
 import { parseEnhancedMessage } from "../utils/messageParser";
+import { performMemoryCleanup, logMemoryUsage } from "../utils/memoryUtils";
 
+// Performance optimizations - Aggressive memory management
+const SCROLL_DEBOUNCE = 200; // Increased debounce
+const MAX_MESSAGES = 15; // Further reduced from 20
+const UPDATE_THROTTLE = 250; // Increased throttle for less frequent updates
+const CONTEXT_LIMIT = 6; // Reduced from 8
+const STREAMING_UPDATE_BATCH_SIZE = 100; // Only update every 100 chars during streaming
 
-const SCROLL_DEBOUNCE = 100;
-const MAX_MESSAGES = 50;
+// Memoized system prompt to avoid recreation on every message
+const SYSTEM_PROMPT = {
+  role: "system",
+  content: [
+    "You are an expert AI developer assistant working inside a WebContainer-based environment.",
+    "You can run terminal commands and generate React + TypeScript code using Vite.",
+    "",
+    "## 🧠 Your Capabilities",
+    "- Run bash commands inside a fully functional terminal",
+    "- Generate clean, runnable React components in TypeScript (Vite setup)",
+    "- Modify, inspect, and reason about code or project files",
+    "",
+    "## 📄 File Generation Format",
+    "When creating or showing files, use this EXACT format:",
+    "",
+    "---filename: src/App.tsx---",
+    "import React from 'react';",
+    "",
+    "function App() {",
+    "  return React.createElement('h1', null, 'Hello, World!');",
+    "}",
+    "",
+    "export default App;",
+    "---end---",
+    "",
+    "## 🛠️ Command Execution",
+    "- Wrap shell commands in triple backticks with `bash`",
+    "",
+    "## ⚛️ Code Generation",
+    "- Always generate TypeScript React code using Vite conventions",
+    "- Use the file format above for complete files",
+    "- Structure code for readability and correctness",
+    "",
+    "## 💡 Response Format",
+    "- Be concise and focused",
+    "- Use the ---filename--- format for complete files",
+    "- Ask clarifying questions when requests are ambiguous",
+    "FOR NOW YOU MUST JUST USE App.tsx not src/components/",
+  ].join("\n")
+} as const;
 
 export function useChatMessages(): {
   messages: ChatMessage[];
@@ -33,6 +78,7 @@ export function useChatMessages(): {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Memoize command service creation
   const commandService = useMemo(() => {
@@ -42,6 +88,16 @@ export function useChatMessages(): {
     return null;
   }, []);
 
+  // Auto-cleanup old messages when limit is reached
+  const addMessage = useCallback((newMessage: ChatMessage) => {
+    setMessages(prev => {
+      const updated = prev.length >= MAX_MESSAGES 
+        ? [...prev.slice(-MAX_MESSAGES + 1), newMessage]
+        : [...prev, newMessage];
+      return updated;
+    });
+  }, []);
+
   // Optimized command execution with minimal state updates
   const {
     executeCommand,
@@ -49,30 +105,17 @@ export function useChatMessages(): {
     lastResult: lastCommandResult
   } = useCommandExecution({
     onCommandStart: useCallback((command: string) => {
-      setMessages(prev => {
-        const newMessage: ChatMessage = {
-          role: "system",
-          content: `🔧 Executing: ${command}`
-        };
-        // Limit messages for performance
-        const updated = prev.length >= MAX_MESSAGES 
-          ? [...prev.slice(1), newMessage]
-          : [...prev, newMessage];
-        return updated;
+      addMessage({
+        role: "system",
+        content: `🔧 Executing: ${command}`
       });
-    }, []),
+    }, [addMessage]),
     onCommandComplete: useCallback((command: string, result: { success: boolean; output: string }) => {
-      setMessages(prev => {
-        const newMessage: ChatMessage = {
-          role: "system",
-          content: `${result.success ? '✅' : '❌'} ${command}: ${result.success ? 'Success' : 'Failed'}`
-        };
-        const updated = prev.length >= MAX_MESSAGES 
-          ? [...prev.slice(1), newMessage]
-          : [...prev, newMessage];
-        return updated;
+      addMessage({
+        role: "system",
+        content: `${result.success ? '✅' : '❌'} ${command}: ${result.success ? 'Success' : 'Failed'}`
       });
-    }, [])
+    }, [addMessage])
   });
 
   // Keep messagesRef in sync with messages state
@@ -90,7 +133,7 @@ export function useChatMessages(): {
     }, SCROLL_DEBOUNCE);
   }, []);
 
-  // Optimized code extraction
+  // Optimized code extraction with caching
   const extractCodeFromMarkdown = useCallback((text: string): string => {
     const codeBlockRegex = /```(?:tsx?|jsx?|javascript|typescript)\n([\s\S]*?)```/g;
     const matches = text.match(codeBlockRegex);
@@ -112,13 +155,32 @@ export function useChatMessages(): {
     try {
       await commandService.executeAICommands(response);
     } catch (error) {
-      setMessages(prev => [...prev, {
+      addMessage({
         role: "system",
         content: `❌ Command execution failed: ${error instanceof Error ? error.message : String(error)}`
-      }]);
+      });
     }
-  }, [commandService]);
+  }, [commandService, addMessage]);
 
+  // Throttled message updates during streaming with batching
+  const updateStreamingMessage = useCallback((assistantText: string) => {
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    // Only update if we have enough new content (batching)
+    updateTimeoutRef.current = setTimeout(() => {
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: assistantText,
+        };
+        return updated;
+      });
+    }, UPDATE_THROTTLE);
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string, images?: string[]) => {
@@ -135,10 +197,12 @@ export function useChatMessages(): {
         content,
         ...(images && images.length > 0 ? { images } : {})
       };
+      
+      // Add user message and placeholder assistant message
       setMessages((prev) => {
         const assistantMsg: ChatMessage = { role: "assistant", content: "" };
-        const updated = prev.length >= MAX_MESSAGES 
-          ? [...prev.slice(1), userMsg, assistantMsg]
+        const updated = prev.length >= MAX_MESSAGES - 1
+          ? [...prev.slice(-MAX_MESSAGES + 2), userMsg, assistantMsg]
           : [...prev, userMsg, assistantMsg];
         return updated;
       });
@@ -147,114 +211,14 @@ export function useChatMessages(): {
       setIsSending(true);
 
       try {
-        const systemPrompt = {
-          role: "system",
-          content: [
-            "You are an expert AI developer assistant working inside a WebContainer-based environment.",
-            "You can run terminal commands and generate React + TypeScript code using Vite.",
-            "",
-            "## 🧠 Your Capabilities",
-            "- Run bash commands inside a fully functional terminal",
-            "- Generate clean, runnable React components in TypeScript (Vite setup)",
-            "- Modify, inspect, and reason about code or project files",
-            "",
-            "## � File Generation Format",
-            "When creating or showing files, use this EXACT format:",
-            "",
-            "---filename: src/App.tsx---",
-            "import React from 'react';",
-            "",
-            "function App() {",
-            "  return <h1>Hello, World!</h1>;",
-            "}",
-            "",
-            "export default App;",
-            "---end---",
-            "",
-            "This creates a nicely formatted file card that users can easily copy.",
-            "You can continue talking normally after the file block.",
-            "",
-            "## �🛠️ Command Execution",
-            "- Wrap any shell commands in triple backticks with `bash` for automatic execution",
-            "- Use for installing packages, running scripts, inspecting directories, etc.",
-            "- Example:",
-            "```bash",
-            "npm install axios",
-            "```",
-            "",
-            "**Common Commands:**",
-            "- `npm install <package>` — install packages",
-            "- `npm install --save-dev <package>` — install dev dependencies",
-            "- `npm run <script>` — run npm scripts",
-            "- `ls -la` — list files",
-            "- `cat <file>` — view file contents",
-            "- `pwd`, `touch`, `mkdir`, etc. — any standard bash commands",
-            "",
-            "## ⚛️ Code Generation",
-            "- Always generate code in TypeScript using React and Vite conventions",
-            "- Use the file format above for complete files",
-            "- Use regular code blocks for snippets or examples",
-            "- Structure code for readability and correctness",
-            "",
-            "## 📦 Dependency Handling",
-            "- If the code depends on any packages, include the corresponding `npm install` command **before** the file",
-            "- Mention types packages (e.g., `@types/react`) when needed",
-            "",
-            "## 💡 Response Format",
-            "- Provide brief explanations or reasoning **outside** code blocks",
-            "- Wrap terminal commands in `bash` blocks",
-            "- Use the ---filename--- format for complete files",
-            "- Use regular ```tsx blocks for code snippets",
-            "- Ask clarifying questions when the user's request is ambiguous",
-            "",
-            "## ✅ Example Response",
-            "I'll create a reusable Button component for you. First, let's install the necessary types:",
-            "",
-            "```bash",
-            "npm install @types/react",
-            "```",
-            "",
-            "Now here's the complete component file:",
-            "",
-            "---filename: src/components/Button.tsx---",
-            "import React from 'react';",
-            "",
-            "type ButtonProps = {",
-            "  onClick: () => void;",
-            "  children: React.ReactNode;",
-            "  variant?: 'primary' | 'secondary';",
-            "};",
-            "",
-            "function Button({ onClick, children, variant = 'primary' }: ButtonProps) {",
-            "  const baseClasses = 'px-4 py-2 rounded font-medium transition-colors';",
-            "  const variantClasses = variant === 'primary' ",
-            "    ? 'bg-blue-500 hover:bg-blue-600 text-white'",
-            "    : 'bg-gray-200 hover:bg-gray-300 text-gray-800';",
-            "",
-            "  return (",
-            "    <button ",
-            "      onClick={onClick} ",
-            "      className={`${baseClasses} ${variantClasses}`}",
-            "    >",
-            "      {children}",
-            "    </button>",
-            "  );",
-            "}",
-            "",
-            "export default Button;",
-            "---end---",
-            "",
-            "You can now import and use this component in your app!",
-            "FOR NOW YOU MUST JUST USE App.tsx not src/components/Button.tsx",
-          ].join("\n")
-          
-        };
-
+        // Use limited context for API call to reduce memory usage
+        const contextMessages = messagesRef.current.slice(-CONTEXT_LIMIT);
+        
         const response = await fetch("/api/ollama", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: [systemPrompt, ...messagesRef.current.slice(-10), userMsg], // Limit context
+            messages: [SYSTEM_PROMPT, ...contextMessages, userMsg],
             model,
           }),
           signal: controller.signal,
@@ -266,6 +230,7 @@ export function useChatMessages(): {
         const decoder = new TextDecoder();
         let assistantText = "";
         let done = false;
+        let lastUpdateLength = 0;
 
         while (!done) {
           if (controller.signal.aborted) {
@@ -280,15 +245,11 @@ export function useChatMessages(): {
             assistantText += decoder.decode(value, { stream: true });
             const codeOnly = extractCodeFromMarkdown(assistantText);
 
-            // Batch updates for better performance
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: assistantText,
-              };
-              return updated;
-            });
+            // Only update UI if we have significant new content (batching)
+            if (assistantText.length - lastUpdateLength >= STREAMING_UPDATE_BATCH_SIZE) {
+              updateStreamingMessage(assistantText);
+              lastUpdateLength = assistantText.length;
+            }
 
             if (codeOnly) {
               setCode(codeOnly);
@@ -302,14 +263,16 @@ export function useChatMessages(): {
         // Parse chunks and execute commands after message is complete
         const parsed = parseEnhancedMessage(assistantText);
         
-        // Update the final message with chunks
+        // Final update with chunks
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: assistantText,
-            chunks: parsed.hasChunks ? parsed.chunks : undefined,
-          };
+          if (updated.length > 0) {
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: assistantText,
+              chunks: parsed.hasChunks ? parsed.chunks : undefined,
+            };
+          }
           return updated;
         });
 
@@ -328,6 +291,7 @@ export function useChatMessages(): {
 
         console.error("Error in sendMessage:", error);
         setMessages((prev) => {
+          if (prev.length === 0) return prev;
           const updated = [...prev];
           updated[updated.length - 1] = {
             role: "assistant",
@@ -341,7 +305,7 @@ export function useChatMessages(): {
         abortControllerRef.current = null;
       }
     },
-    [model, scrollToBottom, handleLLMResponseWithCommandExecution, extractCodeFromMarkdown]
+    [model, scrollToBottom, handleLLMResponseWithCommandExecution, extractCodeFromMarkdown, updateStreamingMessage]
   );
 
   const generateCode = useCallback(
@@ -363,6 +327,11 @@ export function useChatMessages(): {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setCode("");
+    // Perform memory cleanup when clearing messages
+    performMemoryCleanup();
+    if (process.env.NODE_ENV === 'development') {
+      logMemoryUsage();
+    }
   }, []);
 
   const runCommand = useCallback(async (command: string) => {
@@ -376,6 +345,9 @@ export function useChatMessages(): {
     return () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
+      }
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();

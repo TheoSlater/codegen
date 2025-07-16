@@ -1,220 +1,181 @@
 import { ChatRenderChunk } from '../types/types';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface ParsedMessage {
   chunks: ChatRenderChunk[];
   hasChunks: boolean;
 }
 
-/**
- * Parses LLM response content into chunks for enhanced rendering
- * Supports file blocks with format:
- * ---filename: example.tsx---
- * <code content>
- * ---end---
- */
-export function parseMessageContent(content: string): ParsedMessage {
-  const chunks: ChatRenderChunk[] = [];
-  let hasChunks = false;
+// Optimized regex patterns (compiled once)
+const FILE_PATTERN = /---filename:\s*(.+?)---([\s\S]*?)---end---/g;
+const COMMAND_PATTERN = /```(?:bash|shell|cmd)\n([\s\S]*?)```/g;
+const FILE_TREE_PATTERN = /```(?:tree|files|structure)\n([\s\S]*?)```/g;
 
-  // Pattern to match file blocks
-  const fileBlockPattern = /---filename:\s*([^\n]+)---\n([\s\S]*?)(?:\n---end---|$)/g;
-  
-  let lastIndex = 0;
-  let match;
+let chunkIdCounter = 0;
+const generateChunkId = () => `chunk_${++chunkIdCounter}`;
 
-  // Find all file blocks
-  while ((match = fileBlockPattern.exec(content)) !== null) {
-    hasChunks = true;
-    const [fullMatch, filename, codeContent] = match;
-    const matchStart = match.index;
-    const matchEnd = match.index + fullMatch.length;
+// Cache for parsed messages to avoid reparsing
+const parseCache = new Map<string, ParsedMessage>();
+const MAX_CACHE_SIZE = 50;
 
-    // Add any text before this file block
-    if (matchStart > lastIndex) {
-      const textBefore = content.slice(lastIndex, matchStart).trim();
-      if (textBefore) {
-        chunks.push({
-          id: uuidv4(),
-          type: 'text',
-          content: textBefore,
-        });
-      }
-    }
-
-    // Add the file block
-    chunks.push({
-      id: uuidv4(),
-      type: 'code-file',
-      content: codeContent.trim(),
-      filename: filename.trim(),
-      metadata: {
-        status: 'created', // Default status, can be enhanced later
-        size: formatFileSize(new Blob([codeContent]).size),
-      },
-    });
-
-    lastIndex = matchEnd;
-  }
-
-  // Add any remaining text after the last file block
-  if (lastIndex < content.length) {
-    const textAfter = content.slice(lastIndex).trim();
-    if (textAfter) {
-      chunks.push({
-        id: uuidv4(),
-        type: 'text',
-        content: textAfter,
-      });
-    }
-  }
-
-  // If no file blocks were found, treat the entire content as text
-  if (!hasChunks) {
-    chunks.push({
-      id: uuidv4(),
-      type: 'text',
-      content: content,
-    });
-  }
-
-  return { chunks, hasChunks };
-}
-
-/**
- * Alternative parsing for command execution blocks
- * Supports format:
- * ```command
- * npm install react
- * ```
- */
-export function parseCommandBlocks(content: string): ParsedMessage {
-  const chunks: ChatRenderChunk[] = [];
-  let hasChunks = false;
-
-  // Pattern to match command blocks
-  const commandPattern = /```command\n([\s\S]*?)```/g;
-  
-  let lastIndex = 0;
-  let match;
-
-  while ((match = commandPattern.exec(content)) !== null) {
-    hasChunks = true;
-    const [fullMatch, commandContent] = match;
-    const matchStart = match.index;
-    const matchEnd = match.index + fullMatch.length;
-
-    // Add any text before this command block
-    if (matchStart > lastIndex) {
-      const textBefore = content.slice(lastIndex, matchStart).trim();
-      if (textBefore) {
-        chunks.push({
-          id: uuidv4(),
-          type: 'text',
-          content: textBefore,
-        });
-      }
-    }
-
-    // Add the command block
-    chunks.push({
-      id: uuidv4(),
-      type: 'command',
-      content: commandContent.trim(),
-      filename: 'Terminal',
-      language: 'bash',
-    });
-
-    lastIndex = matchEnd;
-  }
-
-  // Add any remaining text
-  if (lastIndex < content.length) {
-    const textAfter = content.slice(lastIndex).trim();
-    if (textAfter) {
-      chunks.push({
-        id: uuidv4(),
-        type: 'text',
-        content: textAfter,
-      });
-    }
-  }
-
-  if (!hasChunks) {
-    chunks.push({
-      id: uuidv4(),
-      type: 'text',
-      content: content,
-    });
-  }
-
-  return { chunks, hasChunks };
-}
-
-/**
- * Main parsing function that handles multiple chunk types
- */
 export function parseEnhancedMessage(content: string): ParsedMessage {
-  // First try to parse file blocks
-  const fileParsed = parseMessageContent(content);
-  if (fileParsed.hasChunks) {
-    // Further parse text chunks for commands
-    const enhancedChunks: ChatRenderChunk[] = [];
-    
-    for (const chunk of fileParsed.chunks) {
-      if (chunk.type === 'text') {
-        const commandParsed = parseCommandBlocks(chunk.content);
-        enhancedChunks.push(...commandParsed.chunks);
-      } else {
-        enhancedChunks.push(chunk);
+  // Check cache first
+  if (parseCache.has(content)) {
+    return parseCache.get(content)!;
+  }
+
+  const chunks: ChatRenderChunk[] = [];
+  let lastIndex = 0;
+  let hasSpecialChunks = false;
+
+  // Track all matches with their positions
+  const matches: Array<{
+    type: 'code-file' | 'command' | 'file-tree';
+    start: number;
+    end: number;
+    content: string;
+    filename?: string;
+  }> = [];
+
+  // Find file blocks
+  let match;
+  while ((match = FILE_PATTERN.exec(content)) !== null) {
+    matches.push({
+      type: 'code-file',
+      start: match.index,
+      end: match.index + match[0].length,
+      content: match[2].trim(),
+      filename: match[1].trim()
+    });
+    hasSpecialChunks = true;
+  }
+
+  // Reset regex lastIndex
+  FILE_PATTERN.lastIndex = 0;
+
+  // Find command blocks
+  while ((match = COMMAND_PATTERN.exec(content)) !== null) {
+    matches.push({
+      type: 'command',
+      start: match.index,
+      end: match.index + match[0].length,
+      content: match[1].trim()
+    });
+    hasSpecialChunks = true;
+  }
+
+  // Reset regex lastIndex
+  COMMAND_PATTERN.lastIndex = 0;
+
+  // Find file tree blocks
+  while ((match = FILE_TREE_PATTERN.exec(content)) !== null) {
+    matches.push({
+      type: 'file-tree',
+      start: match.index,
+      end: match.index + match[0].length,
+      content: match[1].trim()
+    });
+    hasSpecialChunks = true;
+  }
+
+  // Reset regex lastIndex
+  FILE_TREE_PATTERN.lastIndex = 0;
+
+  // Sort matches by position
+  matches.sort((a, b) => a.start - b.start);
+
+  // Process matches and create chunks
+  for (const match of matches) {
+    // Add text before this match if any
+    if (match.start > lastIndex) {
+      const textContent = content.slice(lastIndex, match.start).trim();
+      if (textContent) {
+        chunks.push({
+          id: generateChunkId(),
+          type: 'text',
+          content: textContent
+        });
       }
     }
-    
-    return { chunks: enhancedChunks, hasChunks: true };
+
+    // Add the special chunk
+    const chunk: ChatRenderChunk = {
+      id: generateChunkId(),
+      type: match.type,
+      content: match.content
+    };
+
+    if (match.filename) {
+      chunk.filename = match.filename;
+      chunk.language = getLanguageFromFilename(match.filename);
+    }
+
+    chunks.push(chunk);
+    lastIndex = match.end;
   }
-  
-  // If no file blocks, try command blocks only
-  return parseCommandBlocks(content);
-}
 
-/**
- * Format file size in human readable format
- */
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-}
+  // Add remaining text if any
+  if (lastIndex < content.length) {
+    const remainingContent = content.slice(lastIndex).trim();
+    if (remainingContent) {
+      chunks.push({
+        id: generateChunkId(),
+        type: 'text',
+        content: remainingContent
+      });
+    }
+  }
 
-/**
- * Utility to create a file chunk manually
- */
-export function createFileChunk(
-  filename: string,
-  content: string,
-  status: 'created' | 'updated' | 'deleted' = 'created'
-): ChatRenderChunk {
-  return {
-    id: uuidv4(),
-    type: 'code-file',
-    content: content.trim(),
-    filename,
-    metadata: {
-      status,
-      size: formatFileSize(new Blob([content]).size),
-    },
+  // If no special chunks found, treat entire content as text
+  if (chunks.length === 0) {
+    chunks.push({
+      id: generateChunkId(),
+      type: 'text',
+      content: content
+    });
+  }
+
+  const result: ParsedMessage = {
+    chunks,
+    hasChunks: hasSpecialChunks
   };
+
+  // Cache the result (with size limit)
+  if (parseCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = parseCache.keys().next().value;
+    if (firstKey) {
+      parseCache.delete(firstKey);
+    }
+  }
+  parseCache.set(content, result);
+
+  return result;
 }
 
-/**
- * Utility to create a text chunk manually
- */
-export function createTextChunk(content: string): ChatRenderChunk {
-  return {
-    id: uuidv4(),
-    type: 'text',
-    content,
+function getLanguageFromFilename(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const langMap: Record<string, string> = {
+    'ts': 'typescript',
+    'tsx': 'tsx',
+    'js': 'javascript',
+    'jsx': 'jsx',
+    'py': 'python',
+    'json': 'json',
+    'css': 'css',
+    'scss': 'scss',
+    'html': 'html',
+    'md': 'markdown',
+    'yml': 'yaml',
+    'yaml': 'yaml',
+    'xml': 'xml',
+    'sql': 'sql',
+    'sh': 'bash',
+    'bash': 'bash',
   };
+  return langMap[ext || ''] || 'text';
+}
+
+// Clear cache when needed (for memory management)
+export function clearParseCache(): void {
+  parseCache.clear();
+  chunkIdCounter = 0;
 }

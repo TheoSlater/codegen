@@ -7,6 +7,7 @@ import { ThemeProvider } from "./theme/ThemeContext"; // adjust path accordingly
 import { ModelProvider } from "./context/ModelContext";
 import { ChatMessagesProvider } from "./context/ChatMessagesContext";
 import ErrorBoundary from "./components/ErrorBoundary";
+import MemoryManager from "./components/MemoryManager";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +45,7 @@ export default function RootLayout({
           <ChatMessagesProvider>
             <ThemeProvider>
               <ErrorBoundary>
+                <MemoryManager />
                 {children}
               </ErrorBoundary>
             </ThemeProvider>

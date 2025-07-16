@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import { Box, Paper, Typography, useTheme } from "@mui/material";
 import { useChat } from "../context/ChatMessagesContext";
+import { ChatMessage } from "../types/types";
 import ChatBubble from "./ChatBubble";
 import ChatInput from "./ChatInput";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -41,11 +42,27 @@ const ChatArea: React.FC = () => {
     }
   }, [messages, isSending]);
 
-  const handleSendInput = async (content: string, images?: string[]) => {
+  const handleSendInput = useCallback(async (content: string, images?: string[]) => {
     if (!content.trim()) return;
     await sendMessage(content, images);
     setInput("");
-  };
+  }, [sendMessage]);
+
+  // Memoized item renderer for Virtuoso to prevent unnecessary re-renders
+  const itemRenderer = useCallback((index: number, msg: ChatMessage) => {
+    const isLast = index === messages.length - 1;
+    const isStreaming = isLast && msg.role === "assistant" && isSending;
+
+    return (
+      <ChatBubble
+        key={`${index}-${msg.role}-${msg.content.slice(0, 50)}`}
+        role={msg.role}
+        content={msg.content}
+        chunks={msg.chunks}
+        isStreaming={isStreaming}
+      />
+    );
+  }, [messages.length, isSending]);
 
   return (
     <Box display="flex" height="100dvh" width="100%" gap={2} overflow="hidden">
@@ -109,20 +126,7 @@ const ChatArea: React.FC = () => {
             <Virtuoso
               style={{ flex: 1, height: "100%", width: "100%" }}
               data={messages}
-              itemContent={(index, msg) => {
-                const isLast = index === messages.length - 1;
-                const isStreaming = isLast && msg.role === "assistant" && isSending;
-
-                return (
-                  <ChatBubble
-                    key={index}
-                    role={msg.role}
-                    content={msg.content}
-                    chunks={msg.chunks}
-                    isStreaming={isStreaming}
-                  />
-                );
-              }}
+              itemContent={itemRenderer}
               followOutput="smooth"
               alignToBottom
             />
@@ -170,4 +174,4 @@ const ChatArea: React.FC = () => {
   );
 };
 
-export default ChatArea;
+export default memo(ChatArea);

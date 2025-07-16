@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, memo } from "react";
 import {
   Box,
   Typography,
@@ -68,6 +68,9 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   const theme = useTheme();
   const isUser = role === "user";
   const isSystem = role === "system";
+
+  // Memoize content parsing to avoid reparsing on every render
+  const parsed = useMemo(() => parseEnhancedMessage(content), [content]);
 
   // Handle copy functionality for code chunks
   const handleCopyCode = async (codeContent: string) => {
@@ -165,7 +168,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   }
   
   // Otherwise, try to parse the content for enhanced rendering
-  const parsed = parseEnhancedMessage(content);
   if (parsed.hasChunks) {
     return (
       <Box
@@ -333,4 +335,4 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   );
 };
 
-export default ChatBubble;
+export default memo(ChatBubble);

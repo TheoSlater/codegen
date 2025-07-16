@@ -10,13 +10,14 @@ let webcontainerInstance: WebContainer | null = null;
 
 // Performance optimizations
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
-const DEFAULT_TIMEOUT = 30000; // Reduced from 60000
-const INSTALL_TIMEOUT = 120000; // Reduced from 600000
-const BUILD_TIMEOUT = 90000; // Reduced from 300000
+const DEFAULT_TIMEOUT = 15000; // Reduced from 30000
+const INSTALL_TIMEOUT = 60000; // Reduced from 120000
+const BUILD_TIMEOUT = 45000; // Reduced from 90000
 
-// Command execution cache for repeated commands
+// Command execution cache for repeated commands - reduced cache size
 const commandCache = new Map<string, { result: CommandResult; timestamp: number }>();
-const CACHE_DURATION = 30000; // 30 seconds
+const CACHE_DURATION = 15000; // Reduced from 30 seconds to 15
+const MAX_CACHE_SIZE = 20; // Limit cache size
 
 export class WebContainerService {
   private static instance: WebContainerService;
@@ -372,6 +373,16 @@ export class WebContainerService {
   }
 
   private setCachedResult(command: string, result: CommandResult): void {
+    // Cleanup old cache entries if cache is getting too large
+    if (commandCache.size >= MAX_CACHE_SIZE) {
+      const entries = Array.from(commandCache.entries());
+      const oldestEntries = entries
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, Math.floor(MAX_CACHE_SIZE / 2));
+      
+      oldestEntries.forEach(([key]) => commandCache.delete(key));
+    }
+    
     commandCache.set(command, {
       result,
       timestamp: Date.now()

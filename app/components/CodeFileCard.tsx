@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import {
   Box,
   Typography,
@@ -213,4 +213,4 @@ const CodeFileCard: React.FC<CodeFileCardProps> = ({ chunk, onCopy }) => {
   );
 };
 
-export default CodeFileCard;
+export default memo(CodeFileCard);

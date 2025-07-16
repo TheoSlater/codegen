@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Typography, useTheme, alpha } from '@mui/material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -271,4 +271,4 @@ const ChunkedMessageRenderer: React.FC<ChunkedMessageRendererProps> = ({
   );
 };
 
-export default ChunkedMessageRenderer;
+export default memo(ChunkedMessageRenderer);
