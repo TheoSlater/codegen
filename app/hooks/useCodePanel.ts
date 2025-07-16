@@ -64,7 +64,11 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
   const handleOutput = useCallback(
     (data: string) => {
       const terminal = webContainerService.getTerminalInstance();
-      terminal?.write(data);
+      if (terminal) {
+        terminal.write(data);
+        // Auto-scroll after writing
+        terminal.scrollToBottom();
+      }
 
       const errorHandler = ErrorDetectionUtils.createErrorHandler(
         promptUserToFixError,
@@ -80,6 +84,11 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
 
     try {
       await webContainerService.bootWebContainer(terminalRef.current);
+      
+      // Ensure terminal is properly fitted after initialization
+      setTimeout(() => {
+        webContainerService.fitTerminal();
+      }, 100);
       
       await projectInitializer.initializeProject(
         handleOutput,
@@ -169,7 +178,11 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
       if (typeof event.data === "string") {
         if (event.data.startsWith("console:")) {
           const msg = event.data.replace("console:", "");
-          webContainerService.getTerminalInstance()?.write(`\r\n${msg}\r\n`);
+          const terminal = webContainerService.getTerminalInstance();
+          if (terminal) {
+            terminal.write(`\r\n${msg}\r\n`);
+            terminal.scrollToBottom();
+          }
         }
         else if (event.data.startsWith("error:")) {
           const errorMsg = event.data.replace("error:", "");

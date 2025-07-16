@@ -52,7 +52,7 @@ const ChatArea: React.FC = () => {
       {/* Left: Chat Panel */}
       <Box
         sx={{
-          flex: 1,
+          flex: 0.6,
           display: "flex",
           flexDirection: "column",
           borderRadius: "10px",
@@ -151,7 +151,7 @@ const ChatArea: React.FC = () => {
       <Paper
         elevation={3}
         sx={{
-          flex: 1,
+          flex: 1.4,
           display: "flex",
           flexDirection: "column",
           borderRadius: "10px",

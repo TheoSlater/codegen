@@ -50,23 +50,18 @@ export class WebContainerService {
   async bootWebContainer(terminalElement: HTMLDivElement): Promise<WebContainer> {
     if (webcontainerInstance) return webcontainerInstance;
 
-    const { Terminal } = await import("xterm");
-    const terminal = new Terminal({
-      convertEol: true,
-      fontSize: 14,
-      cursorBlink: true,
-      theme: {
-        background: "#000000",
-        foreground: "#ffffff",
-      },
-    });
-
-    terminal.open(terminalElement);
-    terminal.write("\u001b[1;34m🔧 Booting WebContainer...\r\n\u001b[0m");
-    this.terminal = terminal;
+    // Initialize terminal with proper addons and configuration
+    await this.initializeTerminal(terminalElement);
+    
+    if (this.terminal) {
+      this.terminal.write("\u001b[1;34m🔧 Booting WebContainer...\r\n\u001b[0m");
+      this.scrollToBottom();
+    }
 
     const wc = await WebContainer.boot();
     webcontainerInstance = wc;
+    this.webContainer = wc;
+    this.isReady = true;
 
     return wc;
   }
@@ -131,9 +126,12 @@ export class WebContainerService {
       cursorBlink: true,
       fontSize: 14,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      convertEol: true,
+      scrollback: 1000,
       theme: {
-        background: "#1e1e1e",
+        background: "#0a0a0a",
         foreground: "#ffffff",
+        cursor: "#ffffff",
       },
     });
 
@@ -141,6 +139,18 @@ export class WebContainerService {
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.open(terminalElement);
     this.fitAddon.fit();
+
+    // Set up resize observer for auto-fitting
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        this.fitAddon?.fit();
+      });
+    });
+    resizeObserver.observe(terminalElement);
+
+    // Store the observer for cleanup  
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.terminal as any)._resizeObserver = resizeObserver;
 
     return this.terminal;
   }
@@ -221,6 +231,7 @@ export class WebContainerService {
     // Minimal terminal output for performance
     if (this.terminal && DEBUG_MODE) {
       this.terminal.write(`\x1b[36m$ ${command}\x1b[0m\r\n`);
+      this.scrollToBottom();
     }
 
     // Validate command before execution
@@ -229,6 +240,7 @@ export class WebContainerService {
       const errorMsg = validation.warning || 'Invalid command';
       if (this.terminal) {
         this.terminal.write(`\x1b[31mError: ${errorMsg}\x1b[0m\r\n`);
+        this.scrollToBottom();
       }
       return {
         success: false,
@@ -258,9 +270,11 @@ export class WebContainerService {
               // Only write to terminal in production if it's important
               if (cleanData.includes('error') || cleanData.includes('completed')) {
                 this.terminal.write(data);
+                this.scrollToBottom();
               }
             } else if (this.terminal && DEBUG_MODE) {
               this.terminal.write(data);
+              this.scrollToBottom();
             }
           },
           close: () => {
@@ -299,6 +313,7 @@ export class WebContainerService {
       
       if (this.terminal) {
         this.terminal.write('\r\n');
+        this.scrollToBottom();
       }
 
       return {
@@ -313,6 +328,7 @@ export class WebContainerService {
       
       if (this.terminal) {
         this.terminal.write(`\x1b[31mError: ${errorMessage}\x1b[0m\r\n`);
+        this.scrollToBottom();
       }
       
       return {
@@ -425,14 +441,29 @@ export class WebContainerService {
   // Simplified terminal writing methods
   writeToTerminal(text: string): void {
     this.terminal?.write(text);
+    this.scrollToBottom();
   }
 
   writeErrorToTerminal(error: string): void {
     this.terminal?.write(`\x1b[31mError: ${error}\x1b[0m\r\n`);
+    this.scrollToBottom();
   }
 
   writeSuccessToTerminal(message: string): void {
     this.terminal?.write(`\u001b[1;32m${message}\r\n\u001b[0m`);
+    this.scrollToBottom();
+  }
+
+  scrollToBottom(): void {
+    if (this.terminal) {
+      this.terminal.scrollToBottom();
+    }
+  }
+
+  fitTerminal(): void {
+    if (this.fitAddon) {
+      this.fitAddon.fit();
+    }
   }
 
   clearTerminal(): void {
@@ -445,6 +476,13 @@ export class WebContainerService {
 
   dispose(): void {
     if (this.terminal) {
+      // Clean up resize observer if it exists
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resizeObserver = (this.terminal as any)._resizeObserver;
+      if (resizeObserver && resizeObserver.disconnect) {
+        resizeObserver.disconnect();
+      }
+      
       this.terminal.dispose();
       this.terminal = null;
     }

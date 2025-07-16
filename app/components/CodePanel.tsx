@@ -18,6 +18,7 @@ import ShimmerText from "./ShimmerText";
 import ErrorFixModal from "./ErrorFixModal";
 import { CodePanelProps, ENTRY_FILE } from "../types/types";
 import { useCodePanel } from "../hooks/useCodePanel";
+import { WebContainerService } from "../services/webContainerService";
 
 // Shimmer text components
 const LoadingShimmer = React.memo(() => (
@@ -86,6 +87,28 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
     onWriteSuccess,
     onWriteError,
   });
+
+  // Handle terminal resizing
+  useEffect(() => {
+    const handleResize = () => {
+      // Get the WebContainer service instance and fit the terminal
+      const webContainerService = WebContainerService.getInstance();
+      webContainerService.fitTerminal();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fit terminal when switching to terminal or when terminal becomes visible
+  useEffect(() => {
+    const webContainerService = WebContainerService.getInstance();
+    const timer = setTimeout(() => {
+      webContainerService.fitTerminal();
+    }, 100); // Small delay to ensure DOM is updated
+
+    return () => clearTimeout(timer);
+  }, [tab, showTerminal]);
 
   const editorOptions = useMemo(() => ({
     fontSize: 14,
@@ -280,7 +303,8 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
           <Box
             sx={{
               height: terminalHeight,
-              overflow: 'hidden'
+              overflow: 'hidden',
+              position: 'relative',
             }}
           >
             <Box
@@ -292,6 +316,15 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
                 color: '#fff',
                 fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", monospace',
                 fontSize: '13px',
+                '& .xterm': {
+                  height: '100% !important',
+                },
+                '& .xterm-viewport': {
+                  height: '100% !important',
+                },
+                '& .xterm-screen': {
+                  height: '100% !important',
+                },
               }}
             />
           </Box>
