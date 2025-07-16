@@ -19,21 +19,20 @@ const ChatArea: React.FC = () => {
   const extractCodeBlocks = (markdown: string, language = "tsx"): string[] => {
     const codeBlocks: string[] = [];
     const tree = unified().use(remarkParse).parse(markdown);
-  
+
     visit(tree, "code", (node: { type: string; lang?: string | null; value: string }) => {
       if (!language || node.lang === language) {
         codeBlocks.push(node.value);
       }
     });
-  
+
     return codeBlocks;
   };
 
   useEffect(() => {
     if (messages.length === 0) return;
-  
+
     const lastMsg = messages[messages.length - 1];
-  
     if (lastMsg.role === "assistant") {
       const codeBlocks = extractCodeBlocks(lastMsg.content, "tsx");
       if (codeBlocks.length > 0 && !isSending) {
@@ -49,7 +48,7 @@ const ChatArea: React.FC = () => {
   };
 
   return (
-    <Box display="flex" height="100dvh" width="100%" gap={2}>
+    <Box display="flex" height="100dvh" width="100%" gap={2} overflow="hidden">
       {/* Left: Chat Panel */}
       <Box
         sx={{
@@ -58,18 +57,18 @@ const ChatArea: React.FC = () => {
           flexDirection: "column",
           borderRadius: "10px",
           p: 2,
+          minHeight: 0,
           overflow: "hidden",
-          maxWidth: "50%",
         }}
       >
         <Box
           sx={{
             flex: 1,
             minHeight: 0,
+            overflow: "hidden",
             display: "flex",
             flexDirection: "column",
             justifyContent: messages.length === 0 ? "center" : "flex-start",
-            overflow: "hidden",
             pr: 1,
             mb: 2,
           }}
@@ -77,7 +76,6 @@ const ChatArea: React.FC = () => {
           {messages.length === 0 ? (
             <Box
               sx={{
-                maxWidth: 450,
                 mx: "auto",
                 textAlign: "center",
                 px: 2,
@@ -109,7 +107,7 @@ const ChatArea: React.FC = () => {
             </Box>
           ) : (
             <Virtuoso
-              style={{ height: "100%", width: "100%" }}
+              style={{ flex: 1, height: "100%", width: "100%" }}
               data={messages}
               itemContent={(index, msg) => {
                 const isLast = index === messages.length - 1;
@@ -161,7 +159,8 @@ const ChatArea: React.FC = () => {
           overflow: "hidden",
           bgcolor: "background.paper",
           position: "relative",
-          border: "none"
+          border: "none",
+          minHeight: 0,
         }}
       >
         <CodePanel code={code} setCode={setCode} />

@@ -1,42 +1,37 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useEffect } from "react";
 import "xterm/css/xterm.css";
-import { Box, Tabs, Tab, useTheme } from "@mui/material";
+import {
+  Box,
+  Tabs,
+  Tab,
+  useTheme,
+  Typography,
+} from "@mui/material";
+import {
+  Terminal as TerminalIcon,
+  Code as CodeIcon,
+  Visibility as PreviewIcon,
+} from "@mui/icons-material";
+import { motion, AnimatePresence } from "framer-motion";
 import Editor from "@monaco-editor/react";
 import ShimmerText from "./ShimmerText";
 import ErrorFixModal from "./ErrorFixModal";
 import { CodePanelProps, ENTRY_FILE } from "../types/types";
 import { useCodePanel } from "../hooks/useCodePanel";
 
-// Memoized ShimmerText components to prevent re-renders
+// Shimmer text components
 const LoadingShimmer = React.memo(() => (
-  <Box
-    display="flex"
-    alignItems="center"
-    justifyContent="center"
-    height="100%"
-  >
+  <Box display="flex" alignItems="center" justifyContent="center" height="100%" sx={{ color: 'text.secondary' }}>
     <ShimmerText text="Loading your code..." />
   </Box>
 ));
-
 const PreviewShimmer = React.memo(() => (
-  <Box
-    display="flex"
-    alignItems="center"
-    justifyContent="center"
-    height="100%"
-  >
+  <Box display="flex" alignItems="center" justifyContent="center" height="100%" sx={{ color: 'text.secondary' }}>
     <ShimmerText text="Updating preview..." />
   </Box>
 ));
-
 const PreviewPlaceholder = React.memo(() => (
-  <Box
-    display="flex"
-    alignItems="center"
-    justifyContent="center"
-    height="100%"
-  >
+  <Box display="flex" alignItems="center" justifyContent="center" height="100%" sx={{ color: 'text.secondary' }}>
     <ShimmerText text="Your preview will appear here." />
   </Box>
 ));
@@ -45,7 +40,6 @@ LoadingShimmer.displayName = 'LoadingShimmer';
 PreviewShimmer.displayName = 'PreviewShimmer';
 PreviewPlaceholder.displayName = 'PreviewPlaceholder';
 
-// Optimized main component with memoization
 const CodePanel: React.FC<CodePanelProps> = React.memo(({
   code,
   setCode,
@@ -55,7 +49,24 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
   onWriteError,
 }) => {
   const theme = useTheme();
-  
+  const terminalHeight = 200;
+
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args) => {
+      if (
+        typeof args[0] === 'string' &&
+        args[0].includes('ResizeObserver loop completed with undelivered notifications')
+      ) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
+
   const {
     terminalRef,
     previewIframeRef,
@@ -76,22 +87,33 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
     onWriteError,
   });
 
-  // Memoized editor options to prevent re-creation
   const editorOptions = useMemo(() => ({
     fontSize: 14,
     minimap: { enabled: false },
     wordWrap: "on" as const,
     scrollBeyondLastLine: false,
+    padding: { top: 16, bottom: 16 },
+    lineNumbers: "on" as const,
+    renderLineHighlight: "line" as const,
+    selectionHighlight: false,
+    occurrencesHighlight: "off" as const,
+    overviewRulerBorder: false,
+    hideCursorInOverviewRuler: true,
+    automaticLayout: true,
+    scrollbar: {
+      vertical: "auto" as const,
+      horizontal: "auto" as const,
+      verticalScrollbarSize: 8,
+      horizontalScrollbarSize: 8,
+    },
   }), []);
 
-  // Memoized default React import
   const defaultReactImport = useMemo(() => 'import React from "react";\n\n', []);
 
   const handleEditorDidMount = useCallback((
-    editor: import("monaco-editor").editor.IStandaloneCodeEditor, 
+    editor: import("monaco-editor").editor.IStandaloneCodeEditor,
     monaco: typeof import("monaco-editor")
   ) => {
-    // Configure TypeScript compiler options for JSX
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       jsx: monaco.languages.typescript.JsxEmit.React,
       jsxFactory: "React.createElement",
@@ -102,127 +124,182 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
       allowSyntheticDefaultImports: true,
       esModuleInterop: true,
     });
-    
-    // Check if React is already imported
+
     const model = editor.getModel();
     if (model && !model.getValue().includes('import React')) {
       model.setValue(defaultReactImport + model.getValue());
     }
 
-    // Disable some strict checks that might cause issues
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
       noSemanticValidation: false,
       noSyntaxValidation: false,
     });
+
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        editor.layout();
+      });
+    });
+
+    const editorElement = editor.getDomNode();
+    if (editorElement) {
+      resizeObserver.observe(editorElement);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, [defaultReactImport]);
 
-  // Memoized box styles to prevent re-creation
-  const containerStyles = useMemo(() => ({
-    borderRadius: 1,
-    border: `1px solid ${theme.palette.divider}`,
-  }), [theme.palette.divider]);
-
-  const terminalStyles = useMemo(() => ({
-    height: "100%",
-    width: "100%",
-    backgroundColor: "#000",
-    color: "#fff",
-    fontFamily: "monospace",
-    overflow: "hidden",
-    position: "relative" as const,
-    display: tab === 2 ? "block" : "none",
-  }), [tab]);
-
-  // Memoized iframe styles to prevent object re-creation
-  const iframeStyles = useMemo(() => ({ 
-    flex: 1, 
-    border: "none", 
-    width: "100%" 
-  }), []);
-
-  // Memoized editor change handler
   const handleEditorChange = useCallback((value: string | undefined) => {
-    if (value !== undefined) {
-      setCode(value);
-    }
+    if (value !== undefined) setCode(value);
   }, [setCode]);
 
+  const tabIconMap = {
+    0: <CodeIcon sx={{ fontSize: 16, mr: 1 }} />,
+    1: <PreviewIcon sx={{ fontSize: 16, mr: 1 }} />,
+  };
+  
+
   return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      height="100%"
-      overflow="hidden"
-      sx={containerStyles}
-    >
+    <Box display="flex" flexDirection="column" height="100%" sx={{
+      backgroundColor: theme.palette.background.default,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 1,
+      overflow: 'hidden',
+    }}>
       <ErrorFixModal
         open={errorModalOpen}
         errorText={errorContext}
         onClose={handleCloseModal}
         onFix={handleFixError}
       />
-      
-      <Tabs
-        value={tab}
-        onChange={handleTabChange}
-        sx={{ borderBottom: 1, borderColor: "divider" }}
-      >
-        <Tab label="Code" />
-        <Tab label="Preview" />
-        {showTerminal && <Tab label="Terminal" />}
-      </Tabs>
 
-      {/* Code Tab */}
-      {tab === 0 && (
-        <>
-          {code ? (
-            <Editor
-              height="calc(100% - 48px)"
-              language="typescript"
-              value={code}
-              onChange={handleEditorChange}
-              options={editorOptions}
-              theme="vscode-dark"
-              path={ENTRY_FILE}
-              onMount={handleEditorDidMount}
-            />
-          ) : (
-            <LoadingShimmer />
+      {/* Tabs */}
+      <Box sx={{
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
+      }}>
+        <Tabs
+          value={tab}
+          onChange={handleTabChange}
+          sx={{
+            minHeight: 40,
+            '& .MuiTab-root': {
+              minHeight: 40,
+              textTransform: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: theme.palette.text.secondary,
+              '&.Mui-selected': {
+                color: theme.palette.text.primary,
+              },
+            },
+            '& .MuiTabs-indicator': {
+              height: 2,
+              backgroundColor: theme.palette.primary.main,
+            },
+          }}
+        >
+          <Tab icon={tabIconMap[0]} label="Code" iconPosition="start" />
+          <Tab icon={tabIconMap[1]} label="Preview" iconPosition="start" />
+        </Tabs>
+      </Box>
+
+      {/* Main content with animated tab transitions */}
+      <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <AnimatePresence mode="wait">
+          {tab === 0 && (
+            <motion.div
+              key="code"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.2 }}
+              style={{ height: '100%' }}
+            >
+              {code ? (
+                <Editor
+                  height="100%"
+                  language="typescript"
+                  value={code}
+                  onChange={handleEditorChange}
+                  options={editorOptions}
+                  theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
+                  path={ENTRY_FILE}
+                  onMount={handleEditorDidMount}
+                />
+              ) : <LoadingShimmer />}
+            </motion.div>
           )}
-        </>
-      )}
-
-      {/* Preview Tab */}
-      {tab === 1 && (
-        <>
-          {shouldShowPreviewShimmer ? (
-            <PreviewShimmer />
-          ) : previewUrl ? (
-            <iframe
-              ref={previewIframeRef}
-              src={previewUrl}
-              style={iframeStyles}
-              sandbox="allow-scripts allow-same-origin"
-              title="Preview"
-              onLoad={handleIframeLoad}
-            />
-          ) : (
-            <PreviewPlaceholder />
+          {tab === 1 && (
+            <motion.div
+              key="preview"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              style={{ height: '100%' }}
+            >
+              {shouldShowPreviewShimmer ? (
+                <PreviewShimmer />
+              ) : previewUrl ? (
+                <iframe
+                  ref={previewIframeRef}
+                  src={previewUrl}
+                  style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#fff' }}
+                  sandbox="allow-scripts allow-same-origin"
+                  title="Preview"
+                  onLoad={handleIframeLoad}
+                />
+              ) : <PreviewPlaceholder />}
+            </motion.div>
           )}
-        </>
-      )}
+        </AnimatePresence>
+      </Box>
 
-      {/* Terminal Tab - Enhanced with command execution capabilities */}
+      {/* Terminal */}
       {showTerminal && (
-        <Box
-          ref={terminalRef}
-          sx={terminalStyles}
-        />
+        <>
+          <Box
+            sx={{
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              px: 2,
+              backgroundColor: theme.palette.background.paper,
+              borderTop: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <TerminalIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ flex: 1, fontWeight: 500, color: 'text.secondary' }}>
+              Terminal
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              height: terminalHeight,
+              overflow: 'hidden'
+            }}
+          >
+            <Box
+              ref={terminalRef}
+              sx={{
+                height: '100%',
+                width: '100%',
+                backgroundColor: '#0a0a0a',
+                color: '#fff',
+                fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", monospace',
+                fontSize: '13px',
+              }}
+            />
+          </Box>
+        </>
       )}
     </Box>
   );
 });
 
 CodePanel.displayName = 'CodePanel';
-
 export default CodePanel;

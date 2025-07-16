@@ -123,65 +123,122 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
     }
   }, [previewImage, removeImage, closeImagePreview]);
 
-  // Memoized styles
+  const canSend = !isProcessing && (input.trim() || selectedImages.some((img: ImageData) => !img.isLoading));
+
+  // Memoized styles - bolt.new inspired
   const containerStyles = useMemo(() => ({
     display: "flex",
     flexDirection: "column" as const,
-    borderRadius: theme.shape.borderRadius,
-    bgcolor: theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
-    border: `1px solid ${isDragOver ? theme.palette.primary.main : theme.palette.divider}`,
-    px: 2,
-    py: 1.5,
+    borderRadius: "12px",
+    bgcolor: theme.palette.background.paper,
+    border: `1px solid ${isDragOver ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.08)}`,
     position: "relative" as const,
     overflow: "hidden",
-    transition: "border-color 0.2s ease-in-out",
-  }), [theme.shape.borderRadius, theme.palette.mode, theme.palette.primary.main, theme.palette.divider, isDragOver]);
+    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    boxShadow: isDragOver 
+      ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}` 
+      : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
+    "&:hover": {
+      borderColor: alpha(theme.palette.text.primary, 0.12),
+      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+    },
+    "&:focus-within": {
+      borderColor: theme.palette.primary.main,
+      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`,
+    },
+  }), [theme, isDragOver]);
+
+  const inputContainerStyles = useMemo(() => ({
+    display: "flex",
+    alignItems: "flex-end",
+    px: 3,
+    py: 2,
+    gap: 1,
+    minHeight: 56,
+  }), []);
 
   const textFieldStyles = useMemo(() => ({
-    pr: isVisionModel ? 12 : 6,
-    fontSize: "1rem",
-  }), [isVisionModel]);
-
-  const buttonStyles = useMemo(() => ({
-    position: "absolute" as const,
-    right: 12,
-    bottom: 12,
-    bgcolor: isProcessing ? "#fff" : theme.palette.primary.main,
-    color: isProcessing ? "#000" : theme.palette.primary.contrastText,
-    "&:hover": {
-      bgcolor: isProcessing ? "#ddd" : theme.palette.primary.dark,
+    flex: 1,
+    "& .MuiInputBase-root": {
+      fontSize: "15px",
+      lineHeight: 1.5,
+      color: theme.palette.text.primary,
+      fontFamily: theme.typography.fontFamily,
+      fontWeight: 400,
     },
-    width: 36,
-    height: 36,
-    borderRadius: theme.shape.borderRadius,
-  }), [isProcessing, theme.palette.primary.main, theme.palette.primary.contrastText, theme.palette.primary.dark, theme.shape.borderRadius]);
+    "& .MuiInputBase-input": {
+      padding: 0,
+      "&::placeholder": {
+        color: theme.palette.text.secondary,
+        opacity: 0.7,
+        fontWeight: 400,
+      },
+    },
+  }), [theme]);
 
-  const imageButtonStyles = useMemo(() => ({
-    position: "absolute" as const,
-    right: 54,
-    bottom: 12,
-    borderRadius: theme.shape.borderRadius,
-    bgcolor: theme.palette.background.paper,
-    color: selectedImages.length > 0 ? theme.palette.primary.main : theme.palette.text.secondary,
-    border: `1px solid ${selectedImages.length > 0 ? theme.palette.primary.main : theme.palette.divider}`,
+  const sendButtonStyles = useMemo(() => ({
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    bgcolor: canSend ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.06),
+    color: canSend ? theme.palette.primary.contrastText : theme.palette.text.disabled,
+    borderRadius: "8px",
+    transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
     "&:hover": {
-      bgcolor: alpha(theme.palette.primary.main, 0.04),
-      borderColor: theme.palette.primary.main,
-      color: theme.palette.primary.main,
+      bgcolor: canSend 
+        ? theme.palette.primary.dark 
+        : alpha(theme.palette.text.primary, 0.08),
+      transform: canSend ? "scale(1.05)" : "none",
+    },
+    "&:active": {
+      transform: canSend ? "scale(0.95)" : "none",
     },
     "&:disabled": {
-      bgcolor: theme.palette.grey[100],
-      color: theme.palette.grey[400],
-      borderColor: theme.palette.grey[300],
+      bgcolor: alpha(theme.palette.text.primary, 0.04),
+      color: theme.palette.text.disabled,
     },
-    width: 36,
-    height: 36,
-    transition: "all 0.2s ease-in-out",
-  }), [selectedImages.length, theme.palette.background.paper, theme.palette.divider, theme.palette.grey, theme.palette.primary.main, theme.palette.text.secondary, theme.shape.borderRadius]);
+  }), [theme, canSend]);
 
-  const inputProps = useMemo(() => ({ disableUnderline: true }), []);
+  const imageButtonStyles = useMemo(() => ({
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    borderRadius: "8px",
+    bgcolor: selectedImages.length > 0 
+      ? alpha(theme.palette.primary.main, 0.1) 
+      : "transparent",
+    color: selectedImages.length > 0 
+      ? theme.palette.primary.main 
+      : theme.palette.text.secondary,
+    border: "none",
+    transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+    "&:hover": {
+      bgcolor: alpha(theme.palette.primary.main, 0.08),
+      color: theme.palette.primary.main,
+      transform: "scale(1.05)",
+    },
+    "&:active": {
+      transform: "scale(0.95)",
+    },
+    "&:disabled": {
+      bgcolor: "transparent",
+      color: theme.palette.text.disabled,
+    },
+  }), [selectedImages.length, theme]);
 
-  const canSend = !isProcessing && (input.trim() || selectedImages.some(img => !img.isLoading));
+  const inputProps = useMemo(() => ({ 
+    disableUnderline: true,
+    sx: { fontSize: "inherit" }
+  }), []);
+
+  const placeholderText = useMemo(() => {
+    if (isVisionModel) {
+      return selectedImages.length > 0 
+        ? "Describe what you want to know about these images..."
+        : "Ask me anything or upload images...";
+    }
+    return "Ask me anything...";
+  }, [isVisionModel, selectedImages.length]);
 
   return (
     <>
@@ -193,32 +250,65 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
       >
         <DragOverlay isDragOver={isDragOver} isVisionModel={isVisionModel} />
 
-        <ImageThumbnails
-          selectedImages={selectedImages}
-          onImageClick={openImagePreview}
-          onRemoveImage={removeImage}
-          maxImages={MAX_IMAGES}
-        />
+        {/* Image thumbnails */}
+        {selectedImages.length > 0 && (
+          <Box sx={{ px: 3, pt: 2 }}>
+            <ImageThumbnails
+              selectedImages={selectedImages}
+              onImageClick={openImagePreview}
+              onRemoveImage={removeImage}
+              maxImages={MAX_IMAGES}
+            />
+          </Box>
+        )}
 
-        <TextField
-          multiline
-          minRows={1}
-          maxRows={6}
-          variant="standard"
-          placeholder={
-            isVisionModel 
-              ? selectedImages.length > 0 
-                ? "Describe what you want to know about these images..."
-                : "Ask me anything... (You can upload images or drag & drop!)"
-              : "Ask me anything..."
-          }
-          fullWidth
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          InputProps={inputProps}
-          sx={textFieldStyles}
-        />
+        {/* Input container */}
+        <Box sx={inputContainerStyles}>
+          <TextField
+            multiline
+            minRows={1}
+            maxRows={8}
+            variant="standard"
+            placeholder={placeholderText}
+            fullWidth
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            InputProps={inputProps}
+            sx={textFieldStyles}
+          />
+
+          {/* Action buttons */}
+          <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+            {/* Image upload button - only show for vision models */}
+            {isVisionModel && (
+              <IconButton
+                onClick={handleImageButtonClick}
+                sx={imageButtonStyles}
+                aria-label="Upload images"
+                disabled={selectedImages.length >= MAX_IMAGES}
+                size="small"
+              >
+                <ImageIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            )}
+
+            {/* Send/Cancel button */}
+            <IconButton
+              onClick={isProcessing ? handleCancel : handleSend}
+              disabled={!canSend && !isProcessing}
+              sx={sendButtonStyles}
+              aria-label={isProcessing ? "Cancel sending" : "Send message"}
+              size="small"
+            >
+              {isProcessing ? (
+                <CancelIcon sx={{ fontSize: 18 }} />
+              ) : (
+                <ArrowUpwardIcon sx={{ fontSize: 18 }} />
+              )}
+            </IconButton>
+          </Box>
+        </Box>
 
         <input
           type="file"
@@ -228,31 +318,6 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
           multiple
           style={{ display: 'none' }}
         />
-
-        {/* Image upload button - only show for vision models */}
-        {isVisionModel && (
-          <IconButton
-            onClick={handleImageButtonClick}
-            sx={imageButtonStyles}
-            aria-label="Upload images"
-            disabled={selectedImages.length >= MAX_IMAGES}
-          >
-            <ImageIcon fontSize="small" />
-          </IconButton>
-        )}
-
-        <IconButton
-          onClick={isProcessing ? handleCancel : handleSend}
-          disabled={!canSend}
-          sx={buttonStyles}
-          aria-label={isProcessing ? "Cancel sending" : "Send message"}
-        >
-          {isProcessing ? (
-            <CancelIcon fontSize="small" />
-          ) : (
-            <ArrowUpwardIcon fontSize="small" />
-          )}
-        </IconButton>
       </Box>
 
       {/* Image Preview Modal */}
@@ -272,7 +337,13 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({
         <Alert 
           onClose={clearError} 
           severity="error" 
-          sx={{ width: '100%' }}
+          sx={{ 
+            width: '100%',
+            borderRadius: "8px",
+            "& .MuiAlert-message": {
+              fontSize: "14px",
+            },
+          }}
         >
           {error}
         </Alert>
