@@ -27,3 +27,5 @@ export { default as ShimmerText } from './ShimmerText';
 export { default as DragOverlay } from './DragOverlay';
 export { default as ImageThumbnails } from './ImageThumbnails';
 export { default as ImagePreviewModal } from './ImagePreviewModal';
+export { default as CodeFileCard } from './CodeFileCard';
+export { default as ChunkedMessageRenderer } from './ChunkedMessageRenderer';

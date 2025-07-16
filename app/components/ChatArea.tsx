@@ -118,6 +118,7 @@ const ChatArea: React.FC = () => {
                     key={index}
                     role={msg.role}
                     content={msg.content}
+                    chunks={msg.chunks}
                     isStreaming={isStreaming}
                   />
                 );

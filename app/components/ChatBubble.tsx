@@ -8,10 +8,14 @@ import {
 } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import ChunkedMessageRenderer from "./ChunkedMessageRenderer";
+import { parseEnhancedMessage } from "../utils/messageParser";
+import { ChatMessage } from "../types/types";
 
 interface ChatBubbleProps {
   role: "user" | "assistant" | "system";
   content: string;
+  chunks?: ChatMessage['chunks']; // Optional pre-parsed chunks
   isStreaming?: boolean;
 }
 
@@ -59,10 +63,21 @@ const CodeRenderer = ({
 const ChatBubble: React.FC<ChatBubbleProps> = ({
   role,
   content,
+  chunks,
 }) => {
   const theme = useTheme();
   const isUser = role === "user";
   const isSystem = role === "system";
+
+  // Handle copy functionality for code chunks
+  const handleCopyCode = async (codeContent: string) => {
+    try {
+      await navigator.clipboard.writeText(codeContent);
+      // Could add a toast notification here
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+    }
+  };
 
   // System messages - minimal alert style
   if (isSystem) {
@@ -125,6 +140,44 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
             {content}
           </Typography>
         </Box>
+      </Box>
+    );
+  }
+
+  // Assistant messages - enhanced with chunked rendering
+  const shouldUseChunkedRender = chunks && chunks.length > 0;
+  
+  // If we have pre-parsed chunks, use them
+  if (shouldUseChunkedRender) {
+    return (
+      <Box
+        sx={{
+          mb: 4,
+          maxWidth: "100%",
+        }}
+      >
+        <ChunkedMessageRenderer
+          chunks={chunks!}
+          onCopyCode={handleCopyCode}
+        />
+      </Box>
+    );
+  }
+  
+  // Otherwise, try to parse the content for enhanced rendering
+  const parsed = parseEnhancedMessage(content);
+  if (parsed.hasChunks) {
+    return (
+      <Box
+        sx={{
+          mb: 4,
+          maxWidth: "100%",
+        }}
+      >
+        <ChunkedMessageRenderer
+          chunks={parsed.chunks}
+          onCopyCode={handleCopyCode}
+        />
       </Box>
     );
   }
