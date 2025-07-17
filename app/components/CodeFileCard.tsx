@@ -78,13 +78,13 @@ const CodeFileCard: React.FC<CodeFileCardProps> = ({ chunk, onCopy }) => {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'created':
-        return 'success.main';
+        return theme.palette.success.main;
       case 'updated':
-        return 'warning.main';
+        return theme.palette.warning.main;
       case 'deleted':
-        return 'error.main';
+        return theme.palette.error.main;
       default:
-        return 'primary.main';
+        return theme.palette.primary.main;
     }
   };
 

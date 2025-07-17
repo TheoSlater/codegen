@@ -6,12 +6,12 @@ import { CommandExecutionService } from "../services/commandExecutionService";
 import { parseEnhancedMessage } from "../utils/messageParser";
 import { performMemoryCleanup, logMemoryUsage } from "../utils/memoryUtils";
 
-// Performance optimizations - Aggressive memory management
-const SCROLL_DEBOUNCE = 200; // Increased debounce
+// Performance optimization
+const SCROLL_DEBOUNCE = 100; // Increased debounce
 const MAX_MESSAGES = 15; // Further reduced from 20
-const UPDATE_THROTTLE = 250; // Increased throttle for less frequent updates
+const UPDATE_THROTTLE = 150; // Increased throttle for less frequent updates
 const CONTEXT_LIMIT = 6; // Reduced from 8
-const STREAMING_UPDATE_BATCH_SIZE = 100; // Only update every 100 chars during streaming
+const STREAMING_UPDATE_BATCH_SIZE = 200; // Only update every 200 chars during streaming
 
 // Memoized system prompt to avoid recreation on every message
 const SYSTEM_PROMPT = {
