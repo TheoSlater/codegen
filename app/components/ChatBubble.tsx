@@ -64,13 +64,21 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   role,
   content,
   chunks,
+  isStreaming,
 }) => {
   const theme = useTheme();
   const isUser = role === "user";
   const isSystem = role === "system";
 
-  // Memoize content parsing to avoid reparsing on every render
-  const parsed = useMemo(() => parseEnhancedMessage(content), [content]);
+  // Only parse content if we don't have pre-parsed chunks or if streaming has finished
+  const parsed = useMemo(() => {
+    if (chunks && chunks.length > 0) return { chunks, hasChunks: true };
+    if (isStreaming && content.length > 1000) {
+      // Skip parsing during streaming for large content to improve performance
+      return { chunks: [], hasChunks: false };
+    }
+    return parseEnhancedMessage(content);
+  }, [content, chunks, isStreaming]);
 
   // Handle copy functionality for code chunks
   const handleCopyCode = async (codeContent: string) => {
@@ -335,4 +343,21 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   );
 };
 
-export default memo(ChatBubble);
+export default memo(ChatBubble, (prevProps, nextProps) => {
+  // If role changed, re-render
+  if (prevProps.role !== nextProps.role) return false;
+  
+  // If chunks changed, re-render
+  if (prevProps.chunks !== nextProps.chunks) return false;
+  
+  // If isStreaming status changed, re-render
+  if (prevProps.isStreaming !== nextProps.isStreaming) return false;
+  
+  // For streaming messages, only skip re-render if content is identical
+  if (nextProps.isStreaming) {
+    return prevProps.content === nextProps.content;
+  }
+  
+  // For non-streaming messages, compare content normally
+  return prevProps.content === nextProps.content;
+});

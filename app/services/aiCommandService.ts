@@ -1,4 +1,5 @@
 import { CommandExecutionService } from './commandExecutionService';
+import { WebContainerService } from './webContainerService';
 import { CommandResult } from '../types/types';
 
 /**
@@ -7,9 +8,11 @@ import { CommandResult } from '../types/types';
  */
 export class AICommandService {
   private commandService: CommandExecutionService;
+  private webContainerService: WebContainerService;
 
   constructor() {
     this.commandService = new CommandExecutionService();
+    this.webContainerService = WebContainerService.getInstance();
   }
 
   /**
@@ -41,14 +44,24 @@ export class AICommandService {
   }
 
   async createFile(filePath: string, content: string = ""): Promise<CommandResult> {
-    // Create file using echo or mkdir/touch commands
-    const commands = [
-      `mkdir -p $(dirname "${filePath}")`,
-      `echo '${content.replace(/'/g, "'\\''")}' > "${filePath}"`
-    ];
-    
-    const commandResults = await this.commandService.executeMultipleCommands(commands);
-    return commandResults[commandResults.length - 1]; // Return last result
+    try {
+      // Use WebContainer filesystem API directly instead of shell commands
+      await this.webContainerService.writeFile(filePath, content);
+      
+      return {
+        success: true,
+        output: `File created successfully: ${filePath}`,
+        exitCode: 0
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        output: '',
+        exitCode: 1,
+        error: `Failed to create file ${filePath}: ${errorMessage}`
+      };
+    }
   }
 
   async runScript(scriptName: string): Promise<CommandResult> {

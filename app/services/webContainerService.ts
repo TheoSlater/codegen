@@ -172,6 +172,66 @@ export class WebContainerService {
     return await webcontainerInstance.fs.readFile(ENTRY_FILE, "utf-8");
   }
 
+  // Direct file system operations using WebContainer API
+  async writeFile(filePath: string, content: string): Promise<void> {
+    if (!webcontainerInstance) {
+      throw new Error("WebContainer not initialized");
+    }
+    
+    // Ensure directory exists
+    const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+    if (dirPath) {
+      await this.ensureDirectory(dirPath);
+    }
+    
+    await webcontainerInstance.fs.writeFile(filePath, content);
+  }
+
+  async readFile(filePath: string): Promise<string> {
+    if (!webcontainerInstance) {
+      throw new Error("WebContainer not initialized");
+    }
+    
+    return await webcontainerInstance.fs.readFile(filePath, "utf-8");
+  }
+
+  async ensureDirectory(dirPath: string): Promise<void> {
+    if (!webcontainerInstance) {
+      throw new Error("WebContainer not initialized");
+    }
+    
+    try {
+      // Try to read the directory to see if it exists
+      await webcontainerInstance.fs.readdir(dirPath);
+    } catch {
+      // Directory doesn't exist, create it recursively
+      const parts = dirPath.split('/').filter(part => part.length > 0);
+      let currentPath = '';
+      
+      for (const part of parts) {
+        currentPath += (currentPath ? '/' : '') + part;
+        try {
+          await webcontainerInstance.fs.readdir(currentPath);
+        } catch {
+          await webcontainerInstance.fs.mkdir(currentPath);
+        }
+      }
+    }
+  }
+
+  async fileExists(filePath: string): Promise<boolean> {
+    if (!webcontainerInstance) {
+      return false;
+    }
+    
+    try {
+      await webcontainerInstance.fs.readFile(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // Optimized terminal command execution with caching and queue management
   async executeTerminalCommand(
     command: string, 

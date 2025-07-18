@@ -55,7 +55,7 @@ const ChatArea: React.FC = () => {
 
     return (
       <ChatBubble
-        key={`${index}-${msg.role}-${msg.content.slice(0, 50)}`}
+        key={`${index}-${msg.role}`}
         role={msg.role}
         content={msg.content}
         chunks={msg.chunks}

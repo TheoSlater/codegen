@@ -7,11 +7,9 @@ import { parseEnhancedMessage } from "../utils/messageParser";
 import { performMemoryCleanup, logMemoryUsage } from "../utils/memoryUtils";
 
 // Performance optimization
-const SCROLL_DEBOUNCE = 100; // Increased debounce
+const SCROLL_DEBOUNCE = 50; // Reduced for more responsive scrolling
 const MAX_MESSAGES = 15; // Further reduced from 20
-const UPDATE_THROTTLE = 150; // Increased throttle for less frequent updates
 const CONTEXT_LIMIT = 6; // Reduced from 8
-const STREAMING_UPDATE_BATCH_SIZE = 200; // Only update every 200 chars during streaming
 
 // Memoized system prompt to avoid recreation on every message
 const SYSTEM_PROMPT = {
@@ -19,14 +17,16 @@ const SYSTEM_PROMPT = {
   content: [
     "You are an expert AI developer assistant working inside a WebContainer-based environment.",
     "You can run terminal commands and generate React + TypeScript code using Vite.",
+    "Files are created automatically in real-time using the WebContainer filesystem API.",
     "",
     "## 🧠 Your Capabilities",
     "- Run bash commands inside a fully functional terminal",
     "- Generate clean, runnable React components in TypeScript (Vite setup)",
+    "- Create files directly in the project filesystem in real-time",
     "- Modify, inspect, and reason about code or project files",
     "",
     "## 📄 File Generation Format",
-    "When creating or showing files, use this EXACT format:",
+    "When creating or showing files, use this EXACT format (files will be created immediately):",
     "",
     "---filename: src/App.tsx---",
     "import React from 'react';",
@@ -38,8 +38,14 @@ const SYSTEM_PROMPT = {
     "export default App;",
     "---end---",
     "",
+    "## ⚡ Real-time File Creation",
+    "- Files are created immediately during response streaming",
+    "- NO shell commands needed for file creation (mkdir, echo, touch, etc.)",
+    "- Use the ---filename--- format and files appear instantly in the project",
+    "",
     "## 🛠️ Command Execution",
-    "- Wrap shell commands in triple backticks with `bash`",
+    "- Only use bash commands for package installation, building, or running processes",
+    "- File creation happens automatically with the ---filename--- format",
     "",
     "## ⚛️ Code Generation",
     "- Always generate TypeScript React code using Vite conventions",
@@ -48,9 +54,8 @@ const SYSTEM_PROMPT = {
     "",
     "## 💡 Response Format",
     "- Be concise and focused",
-    "- Use the ---filename--- format for complete files",
+    "- Use the ---filename--- format for complete files (they'll be created instantly)",
     "- Ask clarifying questions when requests are ambiguous",
-    "FOR NOW YOU MUST JUST USE App.tsx not src/components/",
   ].join("\n")
 } as const;
 
@@ -78,7 +83,6 @@ export function useChatMessages(): {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Memoize command service creation
   const commandService = useMemo(() => {
@@ -146,14 +150,17 @@ export function useChatMessages(): {
       .trim();
   }, []);
 
-  // Optimized LLM response handler
+  // Simplified LLM response handler - only handle commands, files are created during streaming
   const handleLLMResponseWithCommandExecution = useCallback(async (response: string) => {
-    if (!commandService || (!response.includes('```bash') && !response.includes('```shell') && !response.includes('```cmd'))) {
+    if (!commandService) {
       return;
     }
     
     try {
-      await commandService.executeAICommands(response);
+      // Handle bash commands only (files are now created during streaming)
+      if (response.includes('```bash') || response.includes('```shell') || response.includes('```cmd')) {
+        await commandService.executeAICommands(response);
+      }
     } catch (error) {
       addMessage({
         role: "system",
@@ -162,25 +169,76 @@ export function useChatMessages(): {
     }
   }, [commandService, addMessage]);
 
-  // Throttled message updates during streaming with batching
+  // Real-time message updates during streaming with file creation
   const updateStreamingMessage = useCallback((assistantText: string) => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    
-    // Only update if we have enough new content (batching)
-    updateTimeoutRef.current = setTimeout(() => {
-      setMessages((prev) => {
-        if (prev.length === 0) return prev;
-        const updated = [...prev];
-        updated[updated.length - 1] = {
-          role: "assistant",
-          content: assistantText,
-        };
-        return updated;
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const updated = [...prev];
+      updated[updated.length - 1] = {
+        role: "assistant",
+        content: assistantText,
+      };
+      return updated;
+    });
+
+    // Check for complete file blocks during streaming and create them immediately
+    const fileMatches = assistantText.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/g);
+    if (fileMatches) {
+      fileMatches.forEach(async (match) => {
+        const fileMatch = match.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/);
+        if (fileMatch) {
+          const filename = fileMatch[1].trim();
+          const content = fileMatch[2].trim();
+          
+          // Create file immediately using WebContainer API
+          try {
+            const { AICommandService } = await import('../services/aiCommandService');
+            const aiCommandService = new AICommandService();
+            
+            addMessage({
+              role: "system",
+              content: `📝 Creating file: ${filename}`
+            });
+            
+            const result = await aiCommandService.createFile(filename, content);
+            if (result.success) {
+              addMessage({
+                role: "system",
+                content: `✅ File created successfully: ${filename}`
+              });
+              
+              // If this is App.tsx, also update the CodePanel
+              if (filename.endsWith('App.tsx') || filename === 'App.tsx') {
+                setCode(content);
+                
+                // Also write directly to the WebContainer main entry point
+                try {
+                  const { CodeWriterService } = await import('../services/codeWriterService');
+                  const codeWriterService = new CodeWriterService();
+                  await codeWriterService.writeCode({
+                    code: content,
+                    isGenerated: true,
+                  });
+                } catch (writeError) {
+                  console.warn('Failed to write to WebContainer entry point:', writeError);
+                }
+              }
+            } else {
+              addMessage({
+                role: "system",
+                content: `❌ Failed to create file: ${filename} - ${result.error}`
+              });
+            }
+          } catch (error) {
+            addMessage({
+              role: "system",
+              content: `❌ Error creating file: ${filename} - ${error instanceof Error ? error.message : String(error)}`
+            });
+          }
+        }
       });
-    }, UPDATE_THROTTLE);
-  }, []);
+    }
+  }, [addMessage, setCode]);
 
   const sendMessage = useCallback(
     async (content: string, images?: string[]) => {
@@ -230,7 +288,6 @@ export function useChatMessages(): {
         const decoder = new TextDecoder();
         let assistantText = "";
         let done = false;
-        let lastUpdateLength = 0;
 
         while (!done) {
           if (controller.signal.aborted) {
@@ -245,11 +302,8 @@ export function useChatMessages(): {
             assistantText += decoder.decode(value, { stream: true });
             const codeOnly = extractCodeFromMarkdown(assistantText);
 
-            // Only update UI if we have significant new content (batching)
-            if (assistantText.length - lastUpdateLength >= STREAMING_UPDATE_BATCH_SIZE) {
-              updateStreamingMessage(assistantText);
-              lastUpdateLength = assistantText.length;
-            }
+            // Update UI in real-time for every chunk
+            updateStreamingMessage(assistantText);
 
             if (codeOnly) {
               setCode(codeOnly);
@@ -343,11 +397,10 @@ export function useChatMessages(): {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
+      const scrollTimeout = scrollTimeoutRef.current;
+      
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
