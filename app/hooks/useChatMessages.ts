@@ -1,15 +1,14 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { ChatMessage } from "../types/types";
 import { useModel } from "../context/ModelContext";
 import { useCommandExecution } from "./useCommandExecution";
-import { CommandExecutionService } from "../services/commandExecutionService";
 import { parseEnhancedMessage } from "../utils/messageParser";
 import { performMemoryCleanup, logMemoryUsage } from "../utils/memoryUtils";
 
 // Performance optimization
-const SCROLL_DEBOUNCE = 50; // Reduced for more responsive scrolling
-const MAX_MESSAGES = 15; // Further reduced from 20
-const CONTEXT_LIMIT = 6; // Reduced from 8
+const SCROLL_DEBOUNCE = 50;
+const MAX_MESSAGES = 15; 
+const CONTEXT_LIMIT = 8; 
 
 //Memoized system prompt to avoid recreation on every message
 // const SYSTEM_PROMPT = {
@@ -103,14 +102,6 @@ export function useChatMessages(): {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Memoize command service creation
-  const commandService = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      return new CommandExecutionService();
-    }
-    return null;
-  }, []);
 
   // Auto-cleanup old messages when limit is reached
   const addMessage = useCallback((newMessage: ChatMessage) => {
@@ -206,26 +197,70 @@ export function useChatMessages(): {
     return "";
   }, []);
 
-  // Simplified LLM response handler - only handle bash commands in code blocks
-  const handleLLMResponseWithCommandExecution = useCallback(async (response: string) => {
-    if (!commandService) {
-      return;
+  // AI Command Service reference for executing commands from AI responses
+  const aiCommandServiceRef = useRef<import('../services/aiCommandService').AICommandService | null>(null);
+
+  const getAICommandService = useCallback(async () => {
+    if (!aiCommandServiceRef.current) {
+      const { AICommandService } = await import('../services/aiCommandService');
+      aiCommandServiceRef.current = new AICommandService();
     }
+    return aiCommandServiceRef.current;
+  }, []);
+
+  // Enhanced LLM response handler with proper AI command service
+  const handleLLMResponseWithCommandExecution = useCallback(async (response: string) => {
+    console.log('🎯 handleLLMResponseWithCommandExecution called');
     
     try {
-      // Only handle bash commands in proper code blocks (not in regular text)
-      if (response.includes('```bash') || response.includes('```shell') || response.includes('```cmd')) {
-        console.log('🔧 Executing bash commands from code blocks');
-        await commandService.executeAICommands(response);
+      // Check for bash commands with detailed logging
+      const hasBashCommands = response.includes('```bash') || response.includes('```shell') || response.includes('```cmd');
+      console.log(`🔍 Checking for bash commands. Found: ${hasBashCommands}`);
+      
+      if (hasBashCommands) {
+        console.log('🔧 Found bash commands in AI response, executing via AICommandService...');
+        console.log('📝 Response excerpt:', response.substring(0, 500) + (response.length > 500 ? '...' : ''));
+        
+        // Use the dedicated AI command service for proper execution
+        const aiCommandService = await getAICommandService();
+        console.log('📦 AICommandService initialized');
+        
+        const results = await aiCommandService.executeAIResponse(response);
+        
+        console.log(`✅ AICommandService completed. ${results.length} results:`, 
+          results.map(r => `${r.success ? '✅' : '❌'} (exit: ${r.exitCode})`));
+        
+        // Add system messages for each command result
+        for (const result of results) {
+          const message = `${result.success ? '✅' : '❌'} Command completed: ${result.success ? 'Success' : `Failed (${result.error || 'Unknown error'})`}`;
+          console.log('📨 Adding system message:', message);
+          addMessage({
+            role: "system",
+            content: message
+          });
+        }
+        
+        if (results.length === 0) {
+          console.log('⚠️ No commands were executed from the AI response');
+        }
+        
+      } else {
+        console.log('ℹ️ No bash command blocks found in AI response');
+        // Show a sample of the response to debug why commands weren't found
+        const bashSample = response.match(/```[\s\S]{0,100}/g);
+        if (bashSample) {
+          console.log('🔍 Found code blocks but not bash:', bashSample);
+        }
       }
       
     } catch (error) {
+      console.error('❌ Command execution error:', error);
       addMessage({
         role: "system",
         content: `❌ Command execution failed: ${error instanceof Error ? error.message : String(error)}`
       });
     }
-  }, [commandService, addMessage]);
+  }, [addMessage, getAICommandService]);
 
   // Initialize file processor
   const fileProcessorRef = useRef<import('../services/aiFileProcessor').AIFileProcessor | null>(null);

@@ -589,29 +589,115 @@ export class WebContainerService {
     return this.executeTerminalCommand(`npm run ${scriptName}`, options);
   }
 
-  // AI-specific command parsing and execution (optimized)
+  // AI-specific command parsing and execution (optimized with debugging)
   async executeAICommands(aiResponse: string, options?: CommandExecutionOptions): Promise<CommandResult[]> {
+    console.log('🤖 WebContainerService.executeAICommands called');
+    
+    // Ensure WebContainer is ready
+    try {
+      await this.ensureWebContainerReady();
+      console.log('✅ WebContainer is ready');
+    } catch (error) {
+      console.error('❌ WebContainer initialization failed:', error);
+      return [];
+    }
+    
     const commands = this.extractCommandsFromAIResponse(aiResponse);
-    if (commands.length === 0) return [];
-    return this.executeMultipleCommands(commands, options);
+    console.log(`📋 Extracted ${commands.length} commands:`, commands);
+    
+    if (commands.length === 0) {
+      console.log('⚠️ No commands found in AI response');
+      return [];
+    }
+    
+    console.log('⚡ Executing commands...');
+    const results = await this.executeMultipleCommands(commands, options);
+    
+    console.log(`✅ Command execution completed. ${results.length} results:`, 
+      results.map(r => `${r.success ? '✅' : '❌'} (exit: ${r.exitCode})`));
+    
+    return results;
   }
 
   private extractCommandsFromAIResponse(response: string): string[] {
+    console.log('🔍 Extracting commands from AI response...');
+    
     const bashBlocks = response.match(/```(?:bash|shell|sh|cmd)\n([\s\S]*?)```/g);
-    if (!bashBlocks) return [];
+    console.log(`🔍 Found ${bashBlocks?.length || 0} bash blocks`);
+    
+    if (!bashBlocks) {
+      console.log('❌ No bash blocks found in response');
+      return [];
+    }
 
     const commands: string[] = [];
     
     for (const block of bashBlocks) {
+      console.log('📝 Processing bash block:', block.substring(0, 100) + '...');
+      
       const commandText = block.replace(/```(?:bash|shell|sh|cmd)\n/, '').replace(/```$/, '').trim();
       const individualCommands = commandText.split('\n')
         .map(cmd => cmd.trim())
-        .filter(cmd => cmd && !cmd.startsWith('#'));
+        .filter(cmd => cmd && this.isValidShellCommand(cmd));
       
+      console.log(`🔧 Extracted ${individualCommands.length} commands from block:`, individualCommands);
       commands.push(...individualCommands);
     }
     
+    console.log(`✅ Total commands extracted: ${commands.length}`, commands);
     return commands;
+  }
+
+  // Enhanced command validation to filter out non-shell content
+  private isValidShellCommand(line: string): boolean {
+    // Skip empty lines and comments
+    if (!line || line.startsWith('#') || line.startsWith('//')) {
+      return false;
+    }
+
+    // Skip obvious non-shell content (React/JS/TS code patterns)
+    const nonShellPatterns = [
+      /^(import|export|const|let|var|function|class|interface|type)\s/,  // JS/TS keywords
+      /^(return|if|else|for|while|switch|case|break|continue)\s/,        // JS control flow
+      /^\s*[<>]/,                                                        // JSX/HTML tags
+      /^\s*\{/,                                                          // Object/function blocks
+      /^\s*\}/,                                                          // Closing blocks
+      /^\s*\/[/*]/,                                                      // Comments
+      /^\s*\*/,                                                          // Block comment lines
+      /^\s*from\s+['"`]/,                                                // Import from statements
+      /^\s*\w+\s*:/,                                                     // Object properties (key: value)
+      /^\s*<\w+/,                                                        // JSX opening tags
+      /^\s*<\/\w+/,                                                      // JSX closing tags
+      /^\s*\w+\.\w+/,                                                    // Method calls (obj.method)
+      /\.(tsx?|jsx?|css|scss|json)$/,                                    // File extensions
+      /^\s*\w+\s*=\s*[^=]/,                                             // Variable assignments (not ==)
+    ];
+
+    // Check if line matches any non-shell pattern
+    if (nonShellPatterns.some(pattern => pattern.test(line))) {
+      console.log(`⚠️ Skipping non-shell line: ${line.substring(0, 50)}...`);
+      return false;
+    }
+
+    // List of common shell command prefixes that we should allow
+    const validCommandPrefixes = [
+      'npm', 'yarn', 'pnpm', 'node', 'python', 'pip',
+      'cd', 'ls', 'pwd', 'mkdir', 'rm', 'cp', 'mv',
+      'cat', 'echo', 'grep', 'find', 'git', 'curl',
+      'wget', 'tar', 'zip', 'unzip', 'chmod', 'sudo',
+      'apt', 'yum', 'brew', 'docker', 'kubectl',
+      'ng', 'npx', 'nx', 'vue', 'create-react-app'
+    ];
+
+    // Check if line starts with a valid command
+    const firstWord = line.split(' ')[0].toLowerCase();
+    const isValidCommand = validCommandPrefixes.includes(firstWord);
+    
+    if (!isValidCommand) {
+      console.log(`⚠️ Skipping unrecognized command: ${line.substring(0, 50)}...`);
+    }
+    
+    return isValidCommand;
   }
 
   // Optimized command validation
