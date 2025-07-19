@@ -9,6 +9,7 @@ export interface UseCodePanelOptions {
   code: string;
   setCode: (code: string) => void;
   isCodeGenerated: boolean;
+  isSending?: boolean;
   onWriteSuccess?: () => void;
   onWriteError?: (error: string) => void;
 }
@@ -18,6 +19,7 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
     code,
     setCode,
     isCodeGenerated,
+    isSending = false,
     onWriteSuccess,
     onWriteError,
   } = options;
@@ -217,7 +219,7 @@ export const useCodePanel = (options: UseCodePanelOptions) => {
     };
   }, [previewUrl, promptUserToFixError, webContainerService]);
 
-  const shouldShowPreviewShimmer = showPreviewShimmer || (isWritingCode && isCodeGenerated);
+  const shouldShowPreviewShimmer = showPreviewShimmer || (isWritingCode && isCodeGenerated) || isSending;
 
   return {
     // Refs

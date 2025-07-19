@@ -1,6 +1,6 @@
 import { WebContainer } from "@webcontainer/api";
 import type { Terminal } from "xterm";
-import { CommandResult, CommandExecutionOptions, ENTRY_FILE } from "../types/types";
+import { CommandResult, CommandExecutionOptions, ENTRY_FILE, PROJECT_DIR } from "../types/types";
 import { stripAnsiCodes, cleanTerminalOutput } from "../utils/ansiUtils";
 
 // fitaddon is the addon for xterm.js to fit the terminal to the container size
@@ -156,12 +156,21 @@ export class WebContainerService {
     return this.terminal;
   }
 
-  async writeCodeToFile(code: string): Promise<void> {
+  async writeCodeToFile(code: string, filename?: string): Promise<void> {
     if (!webcontainerInstance) {
       throw new Error("WebContainer not initialized");
     }
     
-    await webcontainerInstance.fs.writeFile(ENTRY_FILE, code);
+    // If no filename provided, use the default entry file
+    const targetFile = filename ? `/${PROJECT_DIR}/${filename}` : ENTRY_FILE;
+    
+    // Ensure directory exists
+    const dirPath = targetFile.substring(0, targetFile.lastIndexOf('/'));
+    if (dirPath) {
+      await this.ensureDirectory(dirPath);
+    }
+    
+    await webcontainerInstance.fs.writeFile(targetFile, code);
   }
 
   async readCodeFromFile(): Promise<string> {

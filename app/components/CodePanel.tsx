@@ -46,6 +46,7 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
   setCode,
   showTerminal = true,
   isCodeGenerated = false,
+  isSending = false,
   onWriteSuccess,
   onWriteError,
 }) => {
@@ -84,6 +85,7 @@ const CodePanel: React.FC<CodePanelProps> = React.memo(({
     code,
     setCode,
     isCodeGenerated,
+    isSending,
     onWriteSuccess,
     onWriteError,
   });

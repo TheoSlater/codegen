@@ -11,53 +11,73 @@ const SCROLL_DEBOUNCE = 50; // Reduced for more responsive scrolling
 const MAX_MESSAGES = 15; // Further reduced from 20
 const CONTEXT_LIMIT = 6; // Reduced from 8
 
-// Memoized system prompt to avoid recreation on every message
-const SYSTEM_PROMPT = {
-  role: "system",
-  content: [
-    "You are an expert AI developer assistant working inside a WebContainer-based environment.",
-    "You can run terminal commands and generate React + TypeScript code using Vite.",
-    "Files are created automatically in real-time using the WebContainer filesystem API.",
-    "",
-    "## 🧠 Your Capabilities",
-    "- Run bash commands inside a fully functional terminal",
-    "- Generate clean, runnable React components in TypeScript (Vite setup)",
-    "- Create files directly in the project filesystem in real-time",
-    "- Modify, inspect, and reason about code or project files",
-    "",
-    "## 📄 File Generation Format",
-    "When creating or showing files, use this EXACT format (files will be created immediately):",
-    "",
-    "---filename: src/App.tsx---",
-    "import React from 'react';",
-    "",
-    "function App() {",
-    "  return React.createElement('h1', null, 'Hello, World!');",
-    "}",
-    "",
-    "export default App;",
-    "---end---",
-    "",
-    "## ⚡ Real-time File Creation",
-    "- Files are created immediately during response streaming",
-    "- NO shell commands needed for file creation (mkdir, echo, touch, etc.)",
-    "- Use the ---filename--- format and files appear instantly in the project",
-    "",
-    "## 🛠️ Command Execution",
-    "- Only use bash commands for package installation, building, or running processes",
-    "- File creation happens automatically with the ---filename--- format",
-    "",
-    "## ⚛️ Code Generation",
-    "- Always generate TypeScript React code using Vite conventions",
-    "- Use the file format above for complete files",
-    "- Structure code for readability and correctness",
-    "",
-    "## 💡 Response Format",
-    "- Be concise and focused",
-    "- Use the ---filename--- format for complete files (they'll be created instantly)",
-    "- Ask clarifying questions when requests are ambiguous",
-  ].join("\n")
-} as const;
+//Memoized system prompt to avoid recreation on every message
+// const SYSTEM_PROMPT = {
+//   role: "system",
+//   content: [
+//     "STRICT MODE: You MUST ONLY respond using these TWO formats. NO OTHER TEXT ALLOWED.",
+//     "",
+//     "FORMAT 1 - Commands (only when packages are actually needed):",
+//     "```bash",
+//     "npm install react-router-dom",
+//     "```",
+//     "",
+//     "FORMAT 2 - Files:",
+//     "---filename: src/App.tsx---",
+//     "import React from 'react';",
+//     "function App() {",
+//     "  return <div>Hello World</div>;",
+//     "}",
+//     "export default App;",
+//     "---end---",
+//     "",
+//     "ZERO TOLERANCE RULES:",
+//     "- NO plain text responses",
+//     "- NO explanations or descriptions", 
+//     "- NO markdown code blocks (```tsx, ```js, etc.)",
+//     "- NO 'Here is...' or 'This will...' phrases",
+//     "- NO package names mentioned outside bash blocks",
+//     "- NO duplicate responses",
+//     "- NO automatic framer-motion or tailwindcss installation",
+//     "- ONLY install packages when explicitly requested or absolutely necessary",
+//     "",
+//     "REQUIRED BEHAVIOR:",
+//     "- For packages: ONLY use ```bash blocks AND only when needed",
+//     "- For code: ONLY use ---filename--- blocks",
+//     "- Use plain React and CSS unless specific packages are requested",
+//     "- NEVER assume user wants animation libraries or CSS frameworks",
+//     "- NEVER mix formats",
+//     "- NEVER add explanatory text",
+//     "",
+//     "EXAMPLE USER REQUEST: 'Give me a simple button component'",
+//     "CORRECT RESPONSE (no packages needed):",
+//     "---filename: src/Button.tsx---",
+//     "import React from 'react';",
+//     "",
+//     "interface ButtonProps {",
+//     "  children: React.ReactNode;",
+//     "  onClick?: () => void;",
+//     "}",
+//     "",
+//     "export default function Button({ children, onClick }: ButtonProps) {",
+//     "  return (",
+//     "    <button onClick={onClick} style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>",
+//     "      {children}",
+//     "    </button>",
+//     "  );",
+//     "}",
+//     "---end---",
+//     "",
+//     "WRONG RESPONSE (NEVER DO THIS):",
+//     "'Here's a button component:'",
+//     "```tsx",
+//     "// code here",
+//     "```",
+//     "",
+//     "FINAL WARNING: ANY TEXT OUTSIDE THE TWO FORMATS = FAILURE",
+//     "PACKAGE WARNING: ONLY install packages when explicitly requested or absolutely necessary",
+//   ].join("\n")
+// } as const;
 
 export function useChatMessages(): {
   messages: ChatMessage[];
@@ -137,30 +157,68 @@ export function useChatMessages(): {
     }, SCROLL_DEBOUNCE);
   }, []);
 
-  // Optimized code extraction with caching
+  // Optimized code extraction - ONLY extract from chunked file format
   const extractCodeFromMarkdown = useCallback((text: string): string => {
-    const codeBlockRegex = /```(?:tsx?|jsx?|javascript|typescript)\n([\s\S]*?)```/g;
-    const matches = text.match(codeBlockRegex);
+    // ONLY extract from file blocks (chunked format) - NO markdown fallback
+    const fileMatches = text.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/g);
+    if (fileMatches) {
+      // Find the main App component or the last file
+      for (const match of fileMatches) {
+        const fileMatch = match.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/);
+        if (fileMatch) {
+          const filename = fileMatch[1].trim();
+          const content = fileMatch[2].trim();
+          
+          // Prioritize App.tsx or similar main files (allow all file types)
+          if ((filename.includes('App.tsx') || filename.includes('App.js') || 
+              filename.includes('index.tsx') || filename.includes('index.js') ||
+              filename.includes('main.tsx') || filename.includes('main.js'))) {
+            return content;
+          }
+        }
+      }
+      
+      // If no main file found, return the content of the last file (including CSS for editing)
+      for (let i = fileMatches.length - 1; i >= 0; i--) {
+        const lastMatch = fileMatches[i];
+        const lastFileMatch = lastMatch.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/);
+        if (lastFileMatch) {
+          const content = lastFileMatch[2].trim();
+          
+          // Return any file content (removed CSS filtering)
+          return content;
+        }
+      }
+    }
     
-    if (!matches) return "";
+    // Try to extract partial file content during streaming (before ---end--- is reached)
+    const partialFileMatch = text.match(/---filename:\s*(.+?)---([\s\S]*?)$/);
+    if (partialFileMatch) {
+      const content = partialFileMatch[2].trim();
+      
+      // Extract code from file blocks (support any file type including CSS)
+      if (content.length > 50) { // Require at least 50 characters for meaningful partial content
+        return content;
+      }
+    }
     
-    return matches
-      .map(match => match.replace(/```(?:tsx?|jsx?|javascript|typescript)\n/, '').replace(/```$/, ''))
-      .join("\n")
-      .trim();
+    // NO FALLBACK - only chunked format is allowed
+    return "";
   }, []);
 
-  // Simplified LLM response handler - only handle commands, files are created during streaming
+  // Simplified LLM response handler - only handle bash commands in code blocks
   const handleLLMResponseWithCommandExecution = useCallback(async (response: string) => {
     if (!commandService) {
       return;
     }
     
     try {
-      // Handle bash commands only (files are now created during streaming)
+      // Only handle bash commands in proper code blocks (not in regular text)
       if (response.includes('```bash') || response.includes('```shell') || response.includes('```cmd')) {
+        console.log('🔧 Executing bash commands from code blocks');
         await commandService.executeAICommands(response);
       }
+      
     } catch (error) {
       addMessage({
         role: "system",
@@ -169,8 +227,19 @@ export function useChatMessages(): {
     }
   }, [commandService, addMessage]);
 
+  // Initialize file processor
+  const fileProcessorRef = useRef<import('../services/aiFileProcessor').AIFileProcessor | null>(null);
+
+  const getFileProcessor = useCallback(async () => {
+    if (!fileProcessorRef.current) {
+      const { AIFileProcessor } = await import('../services/aiFileProcessor');
+      fileProcessorRef.current = new AIFileProcessor();
+    }
+    return fileProcessorRef.current;
+  }, []);
+
   // Real-time message updates during streaming with file creation
-  const updateStreamingMessage = useCallback((assistantText: string) => {
+  const updateStreamingMessage = useCallback(async (assistantText: string) => {
     setMessages((prev) => {
       if (prev.length === 0) return prev;
       const updated = [...prev];
@@ -181,64 +250,18 @@ export function useChatMessages(): {
       return updated;
     });
 
-    // Check for complete file blocks during streaming and create them immediately
-    const fileMatches = assistantText.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/g);
-    if (fileMatches) {
-      fileMatches.forEach(async (match) => {
-        const fileMatch = match.match(/---filename:\s*(.+?)---([\s\S]*?)---end---/);
-        if (fileMatch) {
-          const filename = fileMatch[1].trim();
-          const content = fileMatch[2].trim();
-          
-          // Create file immediately using WebContainer API
-          try {
-            const { AICommandService } = await import('../services/aiCommandService');
-            const aiCommandService = new AICommandService();
-            
-            addMessage({
-              role: "system",
-              content: `📝 Creating file: ${filename}`
-            });
-            
-            const result = await aiCommandService.createFile(filename, content);
-            if (result.success) {
-              addMessage({
-                role: "system",
-                content: `✅ File created successfully: ${filename}`
-              });
-              
-              // If this is App.tsx, also update the CodePanel
-              if (filename.endsWith('App.tsx') || filename === 'App.tsx') {
-                setCode(content);
-                
-                // Also write directly to the WebContainer main entry point
-                try {
-                  const { CodeWriterService } = await import('../services/codeWriterService');
-                  const codeWriterService = new CodeWriterService();
-                  await codeWriterService.writeCode({
-                    code: content,
-                    isGenerated: true,
-                  });
-                } catch (writeError) {
-                  console.warn('Failed to write to WebContainer entry point:', writeError);
-                }
-              }
-            } else {
-              addMessage({
-                role: "system",
-                content: `❌ Failed to create file: ${filename} - ${result.error}`
-              });
-            }
-          } catch (error) {
-            addMessage({
-              role: "system",
-              content: `❌ Error creating file: ${filename} - ${error instanceof Error ? error.message : String(error)}`
-            });
-          }
-        }
-      });
+    // Process files in real-time during streaming
+    try {
+      const fileProcessor = await getFileProcessor();
+      await fileProcessor.processStreamingFiles(assistantText);
+    } catch (error) {
+      console.error('Error processing streaming files:', error);
     }
-  }, [addMessage, setCode]);
+
+    // DON'T update code panel during streaming for partial content
+    // This prevents fast-refresh issues during generation
+  }, [getFileProcessor]);
+
 
   const sendMessage = useCallback(
     async (content: string, images?: string[]) => {
@@ -249,6 +272,14 @@ export function useChatMessages(): {
       }
       const controller = new AbortController();
       abortControllerRef.current = controller;
+
+      // Clear processed files for new conversation
+      try {
+        const fileProcessor = await getFileProcessor();
+        fileProcessor.clearProcessedFiles();
+      } catch (error) {
+        console.warn('Error clearing processed files:', error);
+      }
 
       const userMsg: ChatMessage = { 
         role: "user", 
@@ -276,7 +307,8 @@ export function useChatMessages(): {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: [SYSTEM_PROMPT, ...contextMessages, userMsg],
+            // remove SYSTEM_PROMPT for now. Testing new Kernl modle
+            messages: [ ...contextMessages, userMsg],
             model,
           }),
           signal: controller.signal,
@@ -300,14 +332,12 @@ export function useChatMessages(): {
 
           if (value) {
             assistantText += decoder.decode(value, { stream: true });
-            const codeOnly = extractCodeFromMarkdown(assistantText);
-
-            // Update UI in real-time for every chunk
+            
+            // Update UI in real-time for every chunk (but don't update code panel)
             updateStreamingMessage(assistantText);
 
-            if (codeOnly) {
-              setCode(codeOnly);
-            }
+            // DON'T update code panel during streaming to prevent fast-refresh
+            // The code panel will be updated when streaming is complete
 
             // Debounced scroll
             scrollToBottom();
@@ -316,6 +346,29 @@ export function useChatMessages(): {
 
         // Parse chunks and execute commands after message is complete
         const parsed = parseEnhancedMessage(assistantText);
+        
+        // Process any remaining files that weren't handled during streaming
+        try {
+          const fileProcessor = await getFileProcessor();
+          const processResults = await fileProcessor.processAIResponse(assistantText);
+          
+          if (processResults.length > 0) {
+            console.log(`📁 Post-processed ${processResults.length} files:`, 
+              processResults.map(r => `${r.filename}: ${r.success ? '✅' : '❌'}`).join(', '));
+          }
+        } catch (error) {
+          console.error('Error in post-processing files:', error);
+        }
+        
+        // Debug logging (can be removed later)
+        console.log('🔍 AI Response for debugging:', assistantText);
+        
+        
+        // Final code extraction to ensure code panel is updated
+        const finalCode = extractCodeFromMarkdown(assistantText);
+        if (finalCode) {
+          setCode(finalCode);
+        }
         
         // Final update with chunks
         setMessages((prev) => {
@@ -359,12 +412,12 @@ export function useChatMessages(): {
         abortControllerRef.current = null;
       }
     },
-    [model, scrollToBottom, handleLLMResponseWithCommandExecution, extractCodeFromMarkdown, updateStreamingMessage]
+    [model, scrollToBottom, handleLLMResponseWithCommandExecution, extractCodeFromMarkdown, updateStreamingMessage, getFileProcessor]
   );
 
   const generateCode = useCallback(
     async (prompt: string) => {
-      const codePrompt = `Generate React TypeScript code for: ${prompt}. Return only the code in a tsx block.`;
+      const codePrompt = `Generate React TypeScript code for: ${prompt}. Use only the chunked format with ---filename--- blocks.`;
       await sendMessage(codePrompt);
     },
     [sendMessage]
@@ -393,6 +446,8 @@ export function useChatMessages(): {
     scrollToBottom();
     return result;
   }, [executeCommand, scrollToBottom]);
+
+
 
   // Cleanup on unmount
   useEffect(() => {

@@ -3,6 +3,7 @@ import { WebContainerService } from "./webContainerService";
 export interface CodeWriteOptions {
   code: string;
   isGenerated: boolean;
+  filename?: string; // Add optional filename parameter
   onWriteStart?: () => void;
   onWriteSuccess?: () => void;
   onWriteError?: (error: string) => void;
@@ -19,6 +20,7 @@ export class CodeWriterService {
   async writeCode(options: CodeWriteOptions): Promise<void> {
     const {
       code,
+      filename,
       onWriteStart,
       onWriteSuccess,
       onWriteError,
@@ -28,11 +30,11 @@ export class CodeWriterService {
       return;
     }
 
-    console.log("Attempting to write code to FS");
+    console.log("Attempting to write code to FS", filename ? `(${filename})` : "(default entry file)");
     onWriteStart?.();
 
     try {
-      await this.webContainerService.writeCodeToFile(code);
+      await this.webContainerService.writeCodeToFile(code, filename);
       console.log("Write successful");
       
       onWriteSuccess?.();

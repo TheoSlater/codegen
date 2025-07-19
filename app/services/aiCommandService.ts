@@ -45,12 +45,16 @@ export class AICommandService {
 
   async createFile(filePath: string, content: string = ""): Promise<CommandResult> {
     try {
+      // Ensure the file path is within the project directory
+      const fullPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+      const projectPath = `/my-app${fullPath}`;
+      
       // Use WebContainer filesystem API directly instead of shell commands
-      await this.webContainerService.writeFile(filePath, content);
+      await this.webContainerService.writeFile(projectPath, content);
       
       return {
         success: true,
-        output: `File created successfully: ${filePath}`,
+        output: `File created successfully: ${projectPath}`,
         exitCode: 0
       };
     } catch (error) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from "react";
+import React, { useState, useCallback, memo } from "react";
 import { Box, Paper, Typography, useTheme } from "@mui/material";
 import { useChat } from "../context/ChatMessagesContext";
 import { ChatMessage } from "../types/types";
@@ -7,40 +7,11 @@ import ChatInput from "./ChatInput";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { Virtuoso } from "react-virtuoso";
 import CodePanel from "./CodePanel";
-import { unified } from "unified";
-import remarkParse from "remark-parse";
-import { visit } from "unist-util-visit";
 
 const ChatArea: React.FC = () => {
   const theme = useTheme();
-  const { messages, isSending, sendMessage, cancel } = useChat();
+  const { messages, isSending, sendMessage, cancel, code, setCode } = useChat();
   const [input, setInput] = useState("");
-  const [code, setCode] = useState<string>("");
-
-  const extractCodeBlocks = (markdown: string, language = "tsx"): string[] => {
-    const codeBlocks: string[] = [];
-    const tree = unified().use(remarkParse).parse(markdown);
-
-    visit(tree, "code", (node: { type: string; lang?: string | null; value: string }) => {
-      if (!language || node.lang === language) {
-        codeBlocks.push(node.value);
-      }
-    });
-
-    return codeBlocks;
-  };
-
-  useEffect(() => {
-    if (messages.length === 0) return;
-
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg.role === "assistant") {
-      const codeBlocks = extractCodeBlocks(lastMsg.content, "tsx");
-      if (codeBlocks.length > 0 && !isSending) {
-        setCode(codeBlocks[0]);
-      }
-    }
-  }, [messages, isSending]);
 
   const handleSendInput = useCallback(async (content: string, images?: string[]) => {
     if (!content.trim()) return;
@@ -148,7 +119,7 @@ const ChatArea: React.FC = () => {
           mt={1.5}
           color="text.secondary"
         >
-          Powered by AI. Generated content may be false or inaccurate.
+          Powered by Kernl AI. Generated content may be false or inaccurate.
         </Typography>
       </Box>
 
@@ -168,7 +139,7 @@ const ChatArea: React.FC = () => {
           minHeight: 0,
         }}
       >
-        <CodePanel code={code} setCode={setCode} />
+        <CodePanel code={code} setCode={setCode} isSending={isSending} />
       </Paper>
     </Box>
   );

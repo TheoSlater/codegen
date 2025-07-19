@@ -27,6 +27,7 @@ export interface CodePanelProps {
   setCode: (code: string) => void;
   showTerminal?: boolean;
   isCodeGenerated?: boolean;
+  isSending?: boolean;
   onWriteSuccess?: () => void;
   onWriteError?: (error: string) => void;
 }
